@@ -4,11 +4,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data import sampler
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets, transforms
 from sklearn.metrics import confusion_matrix
+from torch.utils.data import TensorDataset
+from progress.bar import Bar
+
 
 class Net(nn.Module):
   def __init__(self):
@@ -30,6 +34,43 @@ class Net(nn.Module):
     x = self.fc2(x)
     return x
 
+class autoencoder(nn.Module):
+  def __init__(self):
+    ls = 32
+    super(autoencoder, self).__init__()
+    self.encoder = nn.Sequential(
+      nn.Conv2d(1, 32, 5, 1, 2),
+      nn.BatchNorm2d(32),
+      nn.ReLU(True),
+      nn.MaxPool2d(2, stride=2), 
+      nn.Conv2d(32, 64, 5, 1, 2),
+      nn.BatchNorm2d(64),
+      nn.ReLU(True),
+      nn.MaxPool2d(2, stride=2),  # b, 8, 2, 2
+      nn.Conv2d(64, ls, 5, 1, 2),
+      nn.BatchNorm2d(ls),
+      nn.ReLU(True),
+      nn.MaxPool2d(7, stride=None)  # b, 8, 2, 2
+    )
+    self.decoder = nn.Sequential(
+      nn.ConvTranspose2d(ls, 32, 7, stride=1, padding=0),  # b, 16, 5, 5
+      nn.BatchNorm2d(32),
+      nn.ReLU(True),
+      nn.ConvTranspose2d(32, 64, 6, stride=2, padding=1),  # b, 8, 15, 15
+      nn.BatchNorm2d(64),
+      nn.ReLU(True),
+      nn.ConvTranspose2d(64, 16, 7, stride=1, padding=0),  # b, 1, 28, 28
+      nn.BatchNorm2d(16),
+      nn.ReLU(True),
+      nn.ConvTranspose2d(16, 1, 7, stride=1, padding=0),  # b, 1, 28, 28
+      nn.Tanh()
+    )
+  def forward(self, x):
+    batch_size = x.size(0)
+    x = x.view(batch_size, 1, 28,28)
+    x = self.encoder(x)
+    x = self.decoder(x)
+    return x
 
 def incremental_stream(nb_classes, rate, duration, vect=None):
   if vect==None:
@@ -64,6 +105,38 @@ def unordered_stream(nb_classes, rate, duration, classes_per_interval=5, vect=No
           break
     yield res_classes
 
+def reconstruct_dataset_with_AE(train_dataset, model, real_class):
+  bs=1000
+  real_class = 0
+  indices_real = (train_dataset.train_labels.long()==real_class).nonzero().long()
+  indices_fake = (train_dataset.train_labels.long()!=real_class).nonzero().long()
+  real_loader = DataLoader(train_dataset, batch_size=bs, sampler=SubsetRandomSampler(indices_real.squeeze()))
+  fake_loader = DataLoader(train_dataset, batch_size=bs, sampler=SubsetRandomSampler(indices_fake.squeeze()))
+  
+  res_data = torch.zeros(train_dataset.train_data.shape).reshape(60000,1, 28, 28)
+  res_labels = torch.zeros(train_dataset.train_labels.shape[0])
+  current_index = 0
+  
+  for idx, (train_x, train_y) in enumerate(real_loader):
+    #call('nvidia-smi')
+    current_batch_size = train_x.shape[0]
+    res_data[current_index:current_index+current_batch_size] = train_x.data
+    res_labels[current_index:current_index+current_batch_size] = train_y
+    current_index+=current_batch_size
+    
+  bar = Bar('Reconstructing data for absent classes:', max=60)
+  for idx, (train_x, train_y) in enumerate(fake_loader):
+      #call('nvidia-smi')
+    bar.next()
+    inputs = train_x.cuda()
+    batch = model(inputs)
+    current_batch_size = batch.shape[0]
+    res_data[current_index:current_index+current_batch_size] = batch.cpu().data
+    res_labels[current_index:current_index+current_batch_size] = train_y
+    current_index+=current_batch_size 
+  bar.finish()
+  return (res_data, res_labels)
+
 def test_model(model, test_loader):
   total = 0
   correct = 0
@@ -80,10 +153,18 @@ def test_model(model, test_loader):
   return correct/total*100, (conf_matrix/conf_matrix.sum(0)*100).transpose(0,1)
 
 def main():
-  model = Net().cuda()
-
-  criterion = nn.CrossEntropyLoss().cuda()
-  optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
+  classifier = Net().cuda()
+  generative_model = autoencoder().cuda()
+  
+  criterion_classifier = nn.CrossEntropyLoss().cuda()
+  criterion_G_classif = nn.MSELoss()
+  criterion_G_standard = nn.MSELoss()
+  
+  optimizer_classifier = optim.SGD(classifier.parameters(), lr=0.001, momentum=0.99)
+  optimizer_G_standard = torch.optim.Adam(generative_model.parameters(), lr=0.001,
+                             weight_decay=1e-5)
+  optimizer_G_classif = torch.optim.Adam(generative_model.parameters(), lr=0.001*0.2,
+                             weight_decay=1e-5)
   max_test_acc = 0
 
   img_transform = transforms.Compose([
@@ -91,8 +172,8 @@ def main():
       transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
-  root = '/home/besedin/workspace/Projects/Journal_paper/'
-  train_dataset = datasets.MNIST(root=root+'datasets/',
+  root = '~/workspace/Projects/Journal_paper/'
+  original_dataset = datasets.MNIST(root=root+'datasets/',
     train=True,
     download=True,
     transform=img_transform)
@@ -102,40 +183,58 @@ def main():
     transform=img_transform)
 
   test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
-  test_acc = test_model(model, test_loader)
+  test_acc = test_model(classifier, test_loader)
 
   #train_dataset_ = torch.load('../datasets/LSUN_features/testset.pt')
   #train_dataset = TensorDataset(train_dataset_[0], train_dataset_[1])
   intervals = incremental_stream(10, 10, 1000)
   for idx_interval, classes in enumerate(intervals):
     data_class = classes
+    reconstructed_dataset = reconstruct_dataset_with_AE(original_dataset, generative_model, data_class)
+    train_dataset = TensorDataset(reconstructed_dataset[0], reconstructed_dataset[1])
     print(classes)
-    indices = (train_dataset.train_labels.long()==data_class).nonzero().long()
-    train_loader = DataLoader(train_dataset, batch_size=1000, sampler=SubsetRandomSampler(indices.squeeze()))
+    train_loader = DataLoader(train_dataset, batch_size=100, shuffle=True)
     running_loss = 0.0
+    bar = Bar('Training on the interval '+str(idx_interval)+':', max=int(600))
     for idx, (train_x, train_y) in enumerate(train_loader):
+      bar.next()
       inputs = train_x.cuda()
       labels = train_y.cuda()
       # zero the parameter gradients
-      optimizer.zero_grad()
+      optimizer_classifier.zero_grad()
       # forward + backward + optimize
-      outputs = model(inputs)
-      loss = criterion(outputs, labels.long())
+      outputs = classifier(inputs)
+      loss = criterion_classifier(outputs, labels.long())
       loss.backward()
-      optimizer.step()
-
+      optimizer_classifier.step()
+      outputs = outputs.detach()
+      # Optimizing generative model
+      #img = Variable(train_x).cuda()
+      rec_data = generative_model(inputs)
+      classification_reconstructed = classifier(rec_data)
+      
+      loss_classif = criterion_G_classif(classification_reconstructed, outputs)
+      optimizer_G_classif.zero_grad()
+      loss_classif.backward(retain_graph=True)
+      optimizer_G_classif.step()
+      
+      loss_standard = criterion_G_standard(rec_data, inputs)
+      optimizer_G_standard.zero_grad()
+      loss_standard.backward()
+      optimizer_G_standard.step()
         # print statistics
       running_loss += loss.item()
       if idx % 100 == 99:    # print every 2000 mini-batches
         print('[%d, %5d] loss: %.3f' %
-              (epoch + 1, idx_interval + 1, running_loss / 100))
+              (idx_interval + 1, idx_interval + 1, running_loss / 100))
         running_loss = 0.0
         
-      test_acc, confusion = test_model(model, test_loader)
-      if test_acc > max_test_acc:
-        max_test_acc = test_acc
-        best_model = model.float()
+    test_acc, confusion = test_model(classifier, test_loader)
+    if test_acc > max_test_acc:
+      max_test_acc = test_acc
+      best_model = classifier.float()
       #torch.save(best_model, 'models/'+ dataset +'_classifier.pt')
+    bar.finish()
     print(confusion)
     print('Test accuracy: ' + str(test_acc))
 
