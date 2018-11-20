@@ -181,11 +181,11 @@ def main():
           'classes': []
           }
   root = '~/workspace/Projects/Journal_paper/'
-  original_dataset = datasets.MNIST(root=root+'datasets/',
+  original_dataset = datasets.MNIST(root=root+'datasets/MNIST/',
     train=True,
     download=True,
     transform=img_transform)
-  test_dataset = datasets.MNIST(root=root+'datasets/',
+  test_dataset = datasets.MNIST(root=root+'datasets/MNIST/',
     train=False,
     download=True,
     transform=img_transform)
