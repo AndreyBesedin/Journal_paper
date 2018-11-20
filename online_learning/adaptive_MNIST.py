@@ -13,9 +13,9 @@ from sklearn.metrics import confusion_matrix
 from torch.utils.data import TensorDataset
 from progress.bar import Bar
 
-cuda_device_number = 0
-torch.cuda.device(cuda_device_number)
-ls = 32
+cuda_device_number = 3
+torch.cuda.set_device(cuda_device_number)
+ls = 2
 
 class Net(nn.Module):
   def __init__(self):
