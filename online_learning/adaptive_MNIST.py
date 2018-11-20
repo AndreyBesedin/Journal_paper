@@ -13,6 +13,9 @@ from sklearn.metrics import confusion_matrix
 from torch.utils.data import TensorDataset
 from progress.bar import Bar
 
+cuda_device_number = 0
+torch.cuda.device(cuda_device_number)
+ls = 32
 
 class Net(nn.Module):
   def __init__(self):
@@ -34,9 +37,10 @@ class Net(nn.Module):
     x = self.fc2(x)
     return x
 
+
 class autoencoder(nn.Module):
   def __init__(self):
-    ls = 32
+    global ls
     super(autoencoder, self).__init__()
     self.encoder = nn.Sequential(
       nn.Conv2d(1, 32, 5, 1, 2),
@@ -172,6 +176,10 @@ def main():
       transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
+  progress_to_save = {
+          'confusion': [],
+          'classes': []
+          }
   root = '~/workspace/Projects/Journal_paper/'
   original_dataset = datasets.MNIST(root=root+'datasets/',
     train=True,
@@ -225,8 +233,8 @@ def main():
         # print statistics
       running_loss += loss.item()
       if idx % 100 == 99:    # print every 2000 mini-batches
-        print('[%d, %5d] loss: %.3f' %
-              (idx_interval + 1, idx_interval + 1, running_loss / 100))
+        #print('[%d, %5d] loss: %.3f' %
+              #(idx_interval + 1, idx_interval + 1, running_loss / 100))
         running_loss = 0.0
         
     test_acc, confusion = test_model(classifier, test_loader)
@@ -235,7 +243,13 @@ def main():
       best_model = classifier.float()
       #torch.save(best_model, 'models/'+ dataset +'_classifier.pt')
     bar.finish()
+    progress_to_save['confusion'].append(confusion)
+    progress_to_save['classes'].append(data_class)
     print(confusion)
+    torch.save(progress_to_save, './results/train_progress_ae_'+str(ls)+'.pth')
+    #if idx_interval%20==0:
+      #torch.save(generative_model.state_dict(), './results/models/progress_' + str(idx_interval) + '.pth')
+
     print('Test accuracy: ' + str(test_acc))
 
 if __name__ == '__main__':
