@@ -13,7 +13,7 @@ from sklearn.metrics import confusion_matrix
 from torch.utils.data import TensorDataset
 from progress.bar import Bar
 
-cuda_device_number = 0
+cuda_device_number = 3
 torch.cuda.set_device(cuda_device_number)
 ls = 32
 
