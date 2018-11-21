@@ -10,10 +10,10 @@ print('Loading data')
 
 
 dim = 2048
-nb_classes = 10
+nb_classes = 100
 train_class_size = 1000
 test_class_size = 1000
-data_sampler = initialize_synthetic_sampler(dim, nb_classes, 0.1)
+data_sampler = initialize_synthetic_sampler(dim, nb_classes, 1.7)
 
 trainset_ = sample_data_from_sampler(data_sampler, train_class_size)
 testset_ = sample_data_from_sampler(data_sampler, test_class_size)
@@ -27,12 +27,13 @@ test_loader = data_utils.DataLoader(testset, batch_size=100, shuffle = False)
 #testset = ((testset[0] - mean_)/std_, trainset[1])
 
 class Net(nn.Module):
+  global nb_classes
   def __init__(self):
     super(Net, self).__init__()
     self.fc1 = nn.Linear(2048, 1024)
     self.fc2 = nn.Linear(1024, 256)
     self.fc3 = nn.Linear(256, 128)
-    self.fc4 = nn.Linear(128, 100)
+    self.fc4 = nn.Linear(128, nb_classes)
 
   def forward(self, x):
     x = F.relu(self.fc1(x))
@@ -59,7 +60,7 @@ criterion = nn.CrossEntropyLoss().cuda()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
 data_size = len(trainset[0])
 max_test_acc = 0
-for epoch in range(10):  # loop over the dataset multiple times
+for epoch in range(50):  # loop over the dataset multiple times
     running_loss = 0.0
     indices = torch.randperm(data_size)
 #    for idx, data in enumerate(trainloader, 0):
@@ -78,7 +79,7 @@ for epoch in range(10):  # loop over the dataset multiple times
 
         # print statistics
       running_loss += loss.item()
-      if idx % 10 == 9:    # print every 2000 mini-batches
+      if idx % 50 == 49:    # print every 2000 mini-batches
         print('[%d, %5d] loss: %.3f' %
               (epoch + 1, idx + 1, running_loss / 100))
         running_loss = 0.0
@@ -92,5 +93,7 @@ for epoch in range(10):  # loop over the dataset multiple times
     print('Test accuracy: ' + str(test_acc))
 
 
+torch.save(model, './models/batch_classifier_'+ str(nb_classes) +'_classes.pth')
+torch.save(data_sampler, './models/data_sampler_'+ str(nb_classes) +'_classes.pth')
 print('Test accuracy')
 print('Finished Training')

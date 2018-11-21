@@ -18,7 +18,7 @@ def init_means(dim, nb_classes, intra_class_distance, epsilon):
   bar = Bar('Initializing the means:', max=nb_classes)
   for idx_class in range(1, nb_classes):
     bar.next()
-    v_new = np.random.randn(dim)
+    v_new = np.random.randn(dim)/100
     while dist_to_set(v_new, res)<intra_class_distance:
       for idx_prev in range(idx_class):
         dist_ = dist(v_new, res[idx_prev])
@@ -68,28 +68,30 @@ def init_covariances(dim, nb_classes, max_axis, normalized=False):
   bar.finish()
   return class_cov_matrices
 
-def create_synthetic_dataset(dim, nb_classes, train_class_size, test_class_size, max_axis=5, intra_class_distance=10, epsilon=1e-3):
+def initialize_synthetic_sampler(dim, nb_classes, intra_class_distance=10, max_axis=1, epsilon=1e-3):
   means_ = init_means(dim, nb_classes, intra_class_distance, epsilon)
   covariances = init_covariances(dim, nb_classes, max_axis, False)
   data_class_sampler = {}
-  trainset = []
-  testset = []
   for idx_class in range(nb_classes):
-    print('Generating data for class ' + str(idx_class))
     data_class_sampler[idx_class] = mv_n.MultivariateNormal(torch.DoubleTensor(means_[idx_class]), torch.DoubleTensor(covariances[idx_class]))
-    trainset.append((data_class_sampler[idx_class].sample((train_class_size,)), torch.zeros(train_class_size) + idx_class))
-    testset.append((data_class_sampler[idx_class].sample((test_class_size,)), torch.zeros(test_class_size) + idx_class))
-  return data_class_sampler, trainset, testset
+  return data_class_sampler
+    
+def sample_data_from_sampler(data_sampler, samples_per_class):
+  feature_size = data_sampler[0].sample().shape[0]
+  nb_of_classes = len(data_sampler) 
+  data_size = nb_of_classes*samples_per_class
+  data_ = torch.zeros(data_size, feature_size)
+  labels_ = torch.zeros(data_size)
+  bar = Bar('Generating data ', max=nb_of_classes)
+  for idx_class in range(nb_of_classes):
+    bar.next()
+    data_[idx_class*samples_per_class:(idx_class+1)*samples_per_class] = data_sampler[idx_class].sample((samples_per_class,))
+    labels_[idx_class*samples_per_class:(idx_class+1)*samples_per_class] = idx_class
+  bar.finish()
+  return (data_, labels_)
 
 
-print('Constructed the generators')
-#plt.plot(res[0], res[1], 'ro')
-#plt.show()
-dim = 2048
-nb_classes = 100
-train_class_size = 10000
-test_class_size = 1000
-data_class_sampler, trainset, testset = create_synthetic_dataset(dim, nb_classes, train_class_size, test_class_size)
+
 
 #fig = plt.figure()
 #ax = fig.add_subplot(111, projection='3d')
