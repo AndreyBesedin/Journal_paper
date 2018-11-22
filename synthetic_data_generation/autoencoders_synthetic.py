@@ -19,71 +19,57 @@ opts = {
   'batch_size': 100,
   'mode': 'multi-class',
   'dataset': 'LSUN',
-  'latent_space_size': 4,
+  'latent_space_size': 32,
   'learning_rate': 0.001,
   'number_of_epochs': 100,
-  'add_noise': True,
   'dim': 2048,
   'nb_classes': 100,
-  'predefined_sampler': True,
   'code_size': 32,
   'betta': 0.2,
-  'load_data': True
+  'samples_per_class_train': 1000,
+  'samples_per_class_test': 1000,
+  'predefined_sampler': False,
+  'load_data': False,
+  'add_noise': True,
   }
   
-def to_img(x):
-  x = 0.5 * (x + 1)
-  x = x.clamp(0, 1)
-  x = x.view(x.size(0), 2048)
-  return x
-
-ls = opts['code_size']
+code_size = opts['code_size']
 nb_classes = opts['nb_classes']
 trainset, testset, data_sampler = {}, {}, {}
 
 if opts['load_data']:
-  trainset = torch.load('./trainset_'+ str(opts['nb_classes']) +'_classes.pth')
-  testset = torch.load('./testset_'+ str(opts['nb_classes']) +'_classes.pth')
+  trainset = torch.load('./data/trainset_'+ str(opts['nb_classes']) +'_classes.pth')
+  testset = torch.load('./data/testset_'+ str(opts['nb_classes']) +'_classes.pth')
 else:
   if opts['predefined_sampler']:
     data_sampler = torch.load('./models/data_sampler_'+ str(opts['nb_classes']) +'_classes.pth')
   else:
     data_sampler = initialize_synthetic_sampler(opts['dim'], opts['nb_classes'], 1.7)
-  train_class_size, test_class_size = 1000, 1000
+  train_class_size, test_class_size = opts['samples_per_class_train'], opts['samples_per_class_test']
   trainset_ = sample_data_from_sampler(data_sampler, train_class_size)
   testset_ = sample_data_from_sampler(data_sampler, test_class_size)
   trainset = data_utils.TensorDataset(trainset_[0], trainset_[1])
   testset = data_utils.TensorDataset(testset_[0], testset_[1])  
 
-train_loader = data_utils.DataLoader(trainset, batch_size=100, shuffle = True)
-test_loader = data_utils.DataLoader(testset, batch_size=100, shuffle = False)
+train_loader = data_utils.DataLoader(trainset, batch_size=opts['batch_size'], shuffle = True)
+test_loader = data_utils.DataLoader(testset, batch_size=opts['batch_size'], shuffle = False)
 
 class autoencoder(nn.Module):
   def __init__(self):
-    global ls
+    def linear_block(in_, out_):
+      return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
+    global code_size
     super(autoencoder, self).__init__()
     self.encoder = nn.Sequential(
-      nn.Linear(2048, 512),
-      nn.BatchNorm1d(512),
-      nn.ReLU(True),
-      nn.Linear(512, 128),
-      nn.BatchNorm1d(128),
-      nn.ReLU(True),
-      nn.Linear(128, 32),
-      nn.BatchNorm1d(32),
-      nn.ReLU(True), 
-      nn.Linear(32, ls),
+      linear_block(2048, 512),
+      linear_block(512, 128),
+      linear_block(128, 32),
+      nn.Linear(32, code_size),
     )
     self.decoder = nn.Sequential(
-      nn.Linear(ls, 32),
-      nn.BatchNorm1d(32),
-      nn.ReLU(True),
-      nn.Linear(32, 128),  
-      nn.BatchNorm1d(128),
-      nn.ReLU(True),
-      nn.Linear(128, 512),  
-      nn.BatchNorm1d(512),
-      nn.ReLU(True),
+      linear_block(ls, 32),
+      linear_block(32, 128),
+      linear_block(128, 512),
       nn.Linear(512, 2048),
 #      nn.ReLU(True)
     )
