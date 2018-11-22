@@ -13,9 +13,9 @@ from sklearn.metrics import confusion_matrix
 from torch.utils.data import TensorDataset
 from progress.bar import Bar
 
-cuda_device_number = 3
+cuda_device_number = 0
 torch.cuda.set_device(cuda_device_number)
-ls = 32
+ls = 2
 
 class Net(nn.Module):
   def __init__(self):
@@ -76,6 +76,21 @@ class autoencoder(nn.Module):
     x = self.decoder(x)
     return x
 
+def compute_accuracy_progress(confusion_matrix):                              
+  res_ = []
+  for idx_epoch in range(len(confusion_matrix)):
+    sum_ = 0
+    for idx_class in range(10):
+      sum_+=confusion_matrix[idx_epoch][idx_class][idx_class]/10
+    res_.append(sum_)
+  return res_
+
+def plot_results_from_confusions(filename):
+  res = torch.load(filename)
+  confusion = res['confusion']
+  to_plot = compute_accurace(confusion)
+  plt.plot(range(len(to_plot)), to_plot)
+
 def incremental_stream(nb_classes, rate, duration, vect=None):
   if vect==None:
     vect = (torch.ones(nb_classes)/nb_classes)
@@ -109,9 +124,9 @@ def unordered_stream(nb_classes, rate, duration, classes_per_interval=5, vect=No
           break
     yield res_classes
 
-def reconstruct_full_dataset_with_AE(train_dataset, model):
+def reconstruct_full_dataset_with_AE(train_dataset, model, real_batches=3):
   bs=1000
-  data_loader = DataLoader(train_dataset, batch_size=bs, shuffle=False)
+  data_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
   res_data = torch.zeros(train_dataset.train_data.shape).reshape(60000,1, 28, 28)
   res_labels = torch.zeros(train_dataset.train_labels.shape[0])
   current_index = 0
@@ -120,7 +135,11 @@ def reconstruct_full_dataset_with_AE(train_dataset, model):
       #call('nvidia-smi')
     bar.next()
     inputs = train_x.cuda()
-    batch = model(inputs)
+    batch = {}
+    if idx < real_batches:
+      batch = inputs
+    else:
+      batch = model(inputs)
     current_batch_size = batch.shape[0]
     res_data[current_index:current_index+current_batch_size] = batch.cpu().data
     res_labels[current_index:current_index+current_batch_size] = train_y
@@ -246,7 +265,7 @@ def main():
     #print(confusion)
     #print('Test on reconstructed testset')
     #print(confusion_rec)
-    torch.save(progress_to_save, './results/train_progress_forgetting_ae_'+str(ls)+'.pth')
+    torch.save(progress_to_save, './results/train_progress_forgetting_ae_'+str(ls)+'_with_real.pth')
     #if retrain_epoch%20==0:
       #torch.save(generative_model.state_dict(), './results/models/progress_' + str(retrain_epoch) + '.pth')
 
@@ -293,6 +312,7 @@ def main():
         running_loss = 0.0
         
     test_acc, confusion = test_model(classifier, test_loader)
+    test_acc_rec, confusion_rec = test_model_on_reconstructed(classifier, generative_model, test_loader)
     if test_acc > max_test_acc:
       max_test_acc = test_acc
       best_model = classifier.float()
@@ -300,12 +320,12 @@ def main():
     bar.finish()
     progress_to_save['confusion'].append(confusion)
     progress_to_save['classes'].append(1)
-    print(confusion)
-    torch.save(progress_to_save, './results/train_progress_forgetting_ae_'+str(ls)+'.pth')
+    #print(confusion)
+    torch.save(progress_to_save, './results/train_progress_forgetting_ae_'+str(ls)+'_with_real.pth')
     #if retrain_epoch%20==0:
       #torch.save(generative_model.state_dict(), './results/models/progress_' + str(retrain_epoch) + '.pth')
 
-    print('Test accuracy: ' + str(test_acc))
+    print('Test accuracy: ' + str(test_acc) + '; Reconstructed accuracy: ' + str(test_acc_rec))
 
 if __name__ == '__main__':
   main()

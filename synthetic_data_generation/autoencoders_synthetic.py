@@ -28,6 +28,7 @@ opts = {
   'predefined_sampler': True,
   'code_size': 32,
   'betta': 0.2,
+  'load_data': True
   }
   
 def to_img(x):
@@ -36,19 +37,24 @@ def to_img(x):
   x = x.view(x.size(0), 2048)
   return x
 
-data_sampler = torch.load('./models/data_sampler_'+ str(opts['nb_classes']) +'_classes.pth')
-if not opts['predefined_sampler']:
-  data_sampler = initialize_synthetic_sampler(opts['dim'], opts['nb_classes'], 1.7)
-
 ls = opts['code_size']
-train_class_size = 1000
-test_class_size = 1000
+nb_classes = opts['nb_classes']
+trainset, testset, data_sampler = {}, {}, {}
 
-trainset_ = sample_data_from_sampler(data_sampler, train_class_size)
-testset_ = sample_data_from_sampler(data_sampler, test_class_size)
+if opts['load_data']:
+  trainset = torch.load('./trainset_'+ str(opts['nb_classes']) +'_classes.pth')
+  testset = torch.load('./testset_'+ str(opts['nb_classes']) +'_classes.pth')
+else:
+  if opts['predefined_sampler']:
+    data_sampler = torch.load('./models/data_sampler_'+ str(opts['nb_classes']) +'_classes.pth')
+  else:
+    data_sampler = initialize_synthetic_sampler(opts['dim'], opts['nb_classes'], 1.7)
+  train_class_size, test_class_size = 1000, 1000
+  trainset_ = sample_data_from_sampler(data_sampler, train_class_size)
+  testset_ = sample_data_from_sampler(data_sampler, test_class_size)
+  trainset = data_utils.TensorDataset(trainset_[0], trainset_[1])
+  testset = data_utils.TensorDataset(testset_[0], testset_[1])  
 
-trainset = data_utils.TensorDataset(trainset_[0], trainset_[1])
-testset = data_utils.TensorDataset(testset_[0], testset_[1])
 train_loader = data_utils.DataLoader(trainset, batch_size=100, shuffle = True)
 test_loader = data_utils.DataLoader(testset, batch_size=100, shuffle = False)
 
@@ -90,12 +96,13 @@ class autoencoder(nn.Module):
     return x
   
 class Net(nn.Module):
+  global nb_classes
   def __init__(self):
     super(Net, self).__init__()
     self.fc1 = nn.Linear(2048, 1024)
     self.fc2 = nn.Linear(1024, 256)
     self.fc3 = nn.Linear(256, 128)
-    self.fc4 = nn.Linear(128, 30)
+    self.fc4 = nn.Linear(128, nb_classes)
 
   def forward(self, x):
     x = F.relu(self.fc1(x))
@@ -106,7 +113,7 @@ class Net(nn.Module):
 
 
 autoencoder_model = autoencoder().cuda()
-classifier = torch.load('./models/batch_classifier_'+ str(nb_classes) +'_classes.pth')
+classifier = torch.load('./models/batch_classifier_'+ str(opts['nb_classes']) +'_classes.pth')
 
 def test_model_on_gen(classif, autoenc, test_loader):
   total = 0

@@ -1,8 +1,8 @@
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import torch
 import torch.distributions.multivariate_normal as mv_n
-from mpl_toolkits.mplot3d import Axes3D
+#from mpl_toolkits.mplot3d import Axes3D
 from progress.bar import Bar
 def dist(v1, v2):
   return np.dot(v1-v2, v1-v2)
