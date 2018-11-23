@@ -10,18 +10,22 @@ print('Loading data')
 
 
 dim = 2048
-nb_classes = 100
+nb_classes = 1000
 train_class_size = 1000
 test_class_size = 1000
-data_sampler = initialize_synthetic_sampler(dim, nb_classes, 1.7)
+batch_size = 100
+#data_sampler = initialize_synthetic_sampler(dim, nb_classes, 1.7)
 
-trainset_ = sample_data_from_sampler(data_sampler, train_class_size)
-testset_ = sample_data_from_sampler(data_sampler, test_class_size)
+#trainset_ = sample_data_from_sampler(data_sampler, train_class_size)
+#testset_ = sample_data_from_sampler(data_sampler, test_class_size)
+full_data = torch.load('./data_train_test_1000_classes_1000_samples.pth')
+#trainset = data_utils.TensorDataset(trainset_[0], trainset_[1])
+#testset = data_utils.TensorDataset(testset_[0], testset_[1])
+trainset = data_utils.TensorDataset(full_data['data_train'], full_data['labels_test'])
+testset = data_utils.TensorDataset(full_data['data_test'], full_data['labels_test'])
 
-trainset = data_utils.TensorDataset(trainset_[0], trainset_[1])
-testset = data_utils.TensorDataset(testset_[0], testset_[1])
-train_loader = data_utils.DataLoader(trainset, batch_size=100, shuffle = True)
-test_loader = data_utils.DataLoader(testset, batch_size=100, shuffle = False)
+train_loader = data_utils.DataLoader(trainset, batch_size=batch_size, shuffle = True)
+test_loader = data_utils.DataLoader(testset, batch_size=batch_size, shuffle = False)
 #mean_ = trainset[0].mean(); std_ = trainset[0].std()
 #trainset = ((trainset[0] - mean_)/std_, trainset[1])
 #testset = ((testset[0] - mean_)/std_, trainset[1])
@@ -94,6 +98,6 @@ for epoch in range(50):  # loop over the dataset multiple times
 
 
 torch.save(model, './models/batch_classifier_'+ str(nb_classes) +'_classes.pth')
-torch.save(data_sampler, './models/data_sampler_'+ str(nb_classes) +'_classes.pth')
+#torch.save(data_sampler, './models/data_sampler_'+ str(nb_classes) +'_classes.pth')
 print('Test accuracy')
 print('Finished Training')
