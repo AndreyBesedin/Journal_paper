@@ -4,8 +4,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+from torch.utils.data import sampler
+from torch.utils.data.sampler import SubsetRandomSampler
 
-root = '/home/besedin/workspace/Projects/Journal_paper/'
+root = '~/workspace/Projects/Journal_paper/'
 dataset = 'MNIST'
 print('Loading data')
 bs = 600
@@ -34,6 +36,8 @@ test_dataset = datasets.MNIST(root=root+'datasets/',
   #download=True,
   #transform=transforms.ToTensor())
   
+#indices = torch.randperm(60000)[:3000].long()
+#train_loader = DataLoader(train_dataset, batch_size=100, sampler=SubsetRandomSampler(indices))
 train_loader = DataLoader(train_dataset, shuffle=True,
   batch_size=bs)
 test_loader = DataLoader(test_dataset, shuffle=False,
@@ -105,7 +109,7 @@ for epoch in range(25):  # loop over the dataset multiple times
     if test_acc > max_test_acc:
       max_test_acc = test_acc
       best_model = model.float()
-      torch.save(best_model, 'models/'+ dataset +'_classifier.pt')
+      torch.save(best_model, 'models/'+ dataset +'_small_classifier.pth')
       
     print('Test accuracy: ' + str(test_acc))
 
