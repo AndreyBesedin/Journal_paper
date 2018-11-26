@@ -10,18 +10,19 @@ print('Loading data')
 
 
 dim = 2048
-nb_classes = 1000
-train_class_size = 1000
-test_class_size = 1000
+nb_classes = 10
+epochs = 20
+train_class_size = 10000
+test_class_size = 10000
 batch_size = 100
 #data_sampler = initialize_synthetic_sampler(dim, nb_classes, 1.7)
 
 #trainset_ = sample_data_from_sampler(data_sampler, train_class_size)
 #testset_ = sample_data_from_sampler(data_sampler, test_class_size)
-full_data = torch.load('./data_train_test_1000_classes_1000_samples.pth')
+full_data = torch.load('./data/data_train_test_'+str(nb_classes)+'_classes_'+str(train_class_size)+'_samples.pth')
 #trainset = data_utils.TensorDataset(trainset_[0], trainset_[1])
 #testset = data_utils.TensorDataset(testset_[0], testset_[1])
-trainset = data_utils.TensorDataset(full_data['data_train'], full_data['labels_test'])
+trainset = data_utils.TensorDataset(full_data['data_train'], full_data['labels_train'])
 testset = data_utils.TensorDataset(full_data['data_test'], full_data['labels_test'])
 
 train_loader = data_utils.DataLoader(trainset, batch_size=batch_size, shuffle = True)
@@ -64,7 +65,7 @@ criterion = nn.CrossEntropyLoss().cuda()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
 data_size = len(trainset[0])
 max_test_acc = 0
-for epoch in range(50):  # loop over the dataset multiple times
+for epoch in range(epochs):  # loop over the dataset multiple times
     running_loss = 0.0
     indices = torch.randperm(data_size)
 #    for idx, data in enumerate(trainloader, 0):
@@ -97,7 +98,7 @@ for epoch in range(50):  # loop over the dataset multiple times
     print('Test accuracy: ' + str(test_acc))
 
 
-torch.save(model, './models/batch_classifier_'+ str(nb_classes) +'_classes.pth')
+torch.save(model, './models/batch_classifier_'+ str(nb_classes) +'_classes_'+str(train_class_size)+'_samples.pth')
 #torch.save(data_sampler, './models/data_sampler_'+ str(nb_classes) +'_classes.pth')
 print('Test accuracy')
 print('Finished Training')

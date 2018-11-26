@@ -13,7 +13,7 @@ def dist_to_set(vect, set_of_vect):
     dist_min = min(dist_min, dist(vect, vect_old))
   return dist_min
 
-def init_means(dim, nb_classes, intra_class_distance, epsilon):    
+def init_means(dim, nb_classes, intra_class_distance, epsilon=1e-4):    
   res = [np.zeros(dim)]
   bar = Bar('Initializing the means:', max=nb_classes)
   for idx_class in range(1, nb_classes):
@@ -90,12 +90,12 @@ def sample_data_from_sampler(data_sampler, samples_per_class):
   bar.finish()
   return (data_, labels_)
 
-def sample_big_data(feature_size, nb_of_classes, samples_per_class):
+def sample_big_data(feature_size, nb_of_classes, samples_per_class, inter_class_distance=2):
   full_data = {}
   data_size = nb_of_classes*samples_per_class
   
-  full_data['means_'] = init_means(feature_size, nb_of_classes, 1.7, 1e-3)
-  full_data['covariances'] = init_covariances(feature_size, nb_of_classes, 1)
+  means_ = init_means(feature_size, nb_of_classes, inter_class_distance)
+  covariances = init_covariances(feature_size, nb_of_classes, 1)
   full_data['data_train'] = torch.zeros(data_size, feature_size)
   full_data['data_test'] = torch.zeros(data_size, feature_size)
   full_data['labels_train'] = torch.zeros(data_size)
@@ -104,7 +104,7 @@ def sample_big_data(feature_size, nb_of_classes, samples_per_class):
   bar = Bar('Generating data ', max=nb_of_classes)
   for idx_class in range(nb_of_classes):
     bar.next()
-    data_sampler = mv_n.MultivariateNormal(torch.DoubleTensor(full_data['means_'][idx_class]), torch.DoubleTensor(full_data['covariances'][idx_class]))
+    data_sampler = mv_n.MultivariateNormal(torch.DoubleTensor(means_[idx_class]), torch.DoubleTensor(covariances[idx_class]))
     full_data['data_train'][idx_class*samples_per_class:(idx_class+1)*samples_per_class] = data_sampler.sample((samples_per_class,))
     full_data['data_test'][idx_class*samples_per_class:(idx_class+1)*samples_per_class] = data_sampler.sample((samples_per_class,))    
     full_data['labels_train'][idx_class*samples_per_class:(idx_class+1)*samples_per_class] = idx_class
