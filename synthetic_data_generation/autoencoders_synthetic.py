@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import matplotlib.pyplot as plt 
 from torch.utils.data import sampler
 import torch.utils.data as data_utils
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -19,14 +20,14 @@ print('Loading data')
 opts = {
   'batch_size': 100,
   'mode': 'multi-class',
-  'dataset': 'LSUN',
+  'dataset': 'synthetic',
   'latent_space_size': 32,
   'test_every': 1,
-  'learning_rate': 0.01,
+  'learning_rate': 0.001,
   'number_of_epochs': 10000,
   'dim': 2048,
   'nb_classes': 10,
-  'code_size': 32,
+  'code_size': 64,
   'betta': 0.2,
   'samples_per_class_train': 10000,
   'samples_per_class_test': 10000,
@@ -72,6 +73,37 @@ def weights_init(m):
     torch.nn.init.kaiming_normal_(m.weight.data)
     m.bias.data.fill_(0)
 
+#class autoencoder(nn.Module):
+  #def __init__(self):
+    #def linear_block(in_, out_):
+      #return nn.Sequential(nn.Linear(in_, out_), nn.ReLU(True))
+##      return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
+    #global code_size
+    #super(autoencoder, self).__init__()
+    #self.encoder = nn.Sequential(
+      #linear_block(2048, 1024),
+##      linear_block(3072, 1024),
+      #linear_block(1024, 512),
+      #linear_block(512, 128),
+      #linear_block(128, 64),
+      #linear_block(64, 64),
+      #nn.Linear(64, code_size),
+    #)
+    #self.decoder = nn.Sequential(
+      #linear_block(code_size, 64),
+      #linear_block(64, 64),
+      #linear_block(64, 128),
+      #linear_block(128, 512),
+      #linear_block(512, 1024),
+      #nn.Linear(1024, 2048),
+##      nn.Tanh()
+    #)
+
+  #def forward(self, x):
+    #x = self.encoder(x)
+    #x = self.decoder(x)
+    #return x
+
 class autoencoder(nn.Module):
   def __init__(self):
     def linear_block(in_, out_):
@@ -80,31 +112,18 @@ class autoencoder(nn.Module):
     global code_size
     super(autoencoder, self).__init__()
     self.encoder = nn.Sequential(
-      linear_block(2048, 1024),
-#      linear_block(3072, 1024),
-      linear_block(1024, 512),
-      linear_block(512, 128),
-      linear_block(128, 64),
-      linear_block(64, 64),
-      nn.Linear(64, code_size),
+      linear_block(2048, 512),
     )
     self.decoder = nn.Sequential(
-      linear_block(code_size, 64),
-      linear_block(64, 64),
-      linear_block(64, 128),
-      linear_block(128, 512),
-      linear_block(512, 1024),
-      nn.Linear(1024, 2048),
-#      nn.ReLU(True)
+      nn.Linear(512, 2048),
+#      nn.Tanh()
     )
 
   def forward(self, x):
-    batch_size = x.size(0)
- #   x = x.view(batch_size, 1, 28,28)
     x = self.encoder(x)
     x = self.decoder(x)
     return x
-  
+    
 class Net(nn.Module):
   global nb_classes
   def __init__(self):
@@ -123,14 +142,14 @@ class Net(nn.Module):
 
 
 autoencoder_model = autoencoder().cuda()
-autoencoder_model.apply(weights_init)
+#autoencoder_model.apply(weights_init)
 classifier = torch.load('./models/batch_classifier_'+ str(opts['nb_classes']) +'_classes_'+str(opts['samples_per_class_train'])+'_samples.pth')
 
-def test_model_on_gen(classif, autoenc, test_loader):
+def test_model_on_gen(classif, autoenc, loader):
   total = 0
   correct = 0
-  for idx, (test_X,  test_Y) in enumerate(test_loader):
-    input_test =autoenc(test_X.cuda())
+  for idx, (test_X,  test_Y) in enumerate(loader):
+    input_test = autoenc(test_X.cuda())
     outputs = classif(input_test)
 #    outputs = classif(test_X.cuda())
     _, predicted = torch.max(outputs.data, 1)
@@ -139,10 +158,10 @@ def test_model_on_gen(classif, autoenc, test_loader):
     correct += (predicted.cpu().long() == labels).sum().item()
   return correct/total*100
 
-def test_model(classif, test_loader):
+def test_model(classif, loader):
   total = 0
   correct = 0
-  for idx, (test_X, test_Y) in enumerate(test_loader):
+  for idx, (test_X, test_Y) in enumerate(loader):
     input_test = test_X.cuda()
     outputs = classif(input_test)
     _, predicted = torch.max(outputs.data, 1)
@@ -151,11 +170,11 @@ def test_model(classif, test_loader):
     correct += (predicted.cpu().long() == labels).sum().item()
   return correct/total*100
 
-criterion = nn.MSELoss()
+criterion = nn.MSELoss().cuda()
 criterion_classif = nn.MSELoss()
-optimizer = torch.optim.SGD(autoencoder_model.parameters(), lr=opts['learning_rate'])
-#optimizer = torch.optim.Adam(autoencoder_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999),
-#                             weight_decay=1e-5)
+#optimizer = torch.optim.SGD(autoencoder_model.parameters(), lr=opts['learning_rate'], momentum=0.99)
+optimizer = torch.optim.Adam(autoencoder_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999),
+                             weight_decay=1e-5)
 #optimizer_class = torch.optim.Adam(autoencoder_model.parameters(), lr=opts['betta']*opts['learning_rate'],
 #                             weight_decay=1e-7)
 
@@ -168,7 +187,7 @@ for epoch in range(opts['number_of_epochs']):
     inputs = train_X
     labels = train_Y.cuda()
     img = Variable(inputs).cuda()
-    orig_classes = classifier(img)
+    #orig_classes = classifier(img)
 #    img = Variable(inputs).cuda()
     # ===================forward=====================
     output = autoencoder_model(img)
@@ -183,6 +202,11 @@ for epoch in range(opts['number_of_epochs']):
     loss.backward()
     optimizer.step()
     if idx%100==0:
+      plt.plot(range(2048), img[0].cpu().detach().numpy(), label='in')
+      plt.plot(range(2048), output[0].cpu().detach().numpy(), label='out')
+      plt.legend()
+      plt.savefig('imgs/epoch_'+str(epoch)+'_idx_'+str(idx)+'.png')
+      plt.close()
       print('epoch [{}/{}], loss:{:.4f}'
           .format(epoch+1, opts['number_of_epochs'], loss.item()))
     # ===================log========================

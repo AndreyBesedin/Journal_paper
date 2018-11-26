@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data_utils 
 from synthetic_data_generation import initialize_synthetic_sampler, sample_data_from_sampler
-root = '/home/besedin/workspace/Projects/Journal_paper/'
+root = '~/workspace/Projects/Journal_paper/'
 dataset = 'synthetic'
 print('Loading data')
 
