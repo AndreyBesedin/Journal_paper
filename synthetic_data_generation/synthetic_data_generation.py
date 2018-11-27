@@ -68,7 +68,7 @@ def init_covariances(dim, nb_classes, max_axis, normalized=False):
   bar.finish()
   return class_cov_matrices
 
-def initialize_synthetic_sampler(dim, nb_classes, intra_class_distance=10, max_axis=1, epsilon=1e-3):
+def initialize_synthetic_sampler(dim, nb_classes, intra_class_distance, max_axis=1, epsilon=1e-3):
   means_ = init_means(dim, nb_classes, intra_class_distance, epsilon)
   covariances = init_covariances(dim, nb_classes, max_axis, False)
   data_class_sampler = {}
