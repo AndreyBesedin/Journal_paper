@@ -27,22 +27,19 @@ full_data = torch.load('./data/data_train_test_'+str(nb_classes)+'_classes_'+str
 #testset = data_utils.TensorDataset(testset_[0], testset_[1])
 trainset = data_utils.TensorDataset(full_data['data_train'], full_data['labels_train'])
 testset = data_utils.TensorDataset(full_data['data_test'], full_data['labels_test'])
-
-train_loader = data_utils.DataLoader(trainset, batch_size=batch_size, shuffle = True)
-test_loader = data_utils.DataLoader(testset, batch_size=batch_size, shuffle = False)
-#mean_ = trainset[0].mean(); std_ = trainset[0].std()
-#trainset = ((trainset[0] - mean_)/std_, trainset[1])
-#testset = ((testset[0] - mean_)/std_, trainset[1])
 rec_model = autoencoder(32)
 state = torch.load('./models/AE_32_code_size_500_classes_2000_samples.pth')
-rec_model.load_state(state)
+rec_model.load_state_dict(state)
 
 print('Reconstructing data')
-for (train_X, train_Y) in train_loader:
-  inputs = train_X.cuda()
-  train_X = rec_model(train_X)
-
-
+trainset = reconstruct_dataset_with_AE(trainset, rec_model.cuda(), bs = 1000, real_data_ratio=0)
+  
+train_loader = data_utils.DataLoader(trainset, batch_size=batch_size, shuffle = True)
+test_loader = data_utils.DataLoader(testset, batch_size=batch_size, shuffle = False)
+#rec_model = autoencoder(32)
+#state = torch.load('./models/AE_32_code_size_500_classes_2000_samples.pth')
+#rec_model.load_state(state)
+print('Training')
 model = Net(nb_classes).cuda()
 criterion = nn.CrossEntropyLoss().cuda()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.99)
@@ -80,7 +77,7 @@ for epoch in range(epochs):  # loop over the dataset multiple times
     print('Test accuracy: ' + str(test_acc))
 
 
-torch.save(model, './models/batch_classifier_'+ str(nb_classes) +'_classes_'+str(train_class_size)+'_samples.pth')
+torch.save(model, './models/batch_classifier_'+ str(nb_classes) +'_classes_'+str(train_class_size)+'_samples_rec.pth')
 #torch.save(data_sampler, './models/data_sampler_'+ str(nb_classes) +'_classes.pth')
 print('Test accuracy')
 print('Finished Training')
