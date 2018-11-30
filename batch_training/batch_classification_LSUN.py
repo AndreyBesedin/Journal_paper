@@ -8,10 +8,10 @@ root = '/home/besedin/workspace/Projects/Journal_paper/'
 dataset = 'LSUN'
 print('Loading data')
 
-trainset_ = torch.load(root + 'datasets/' + dataset + '_features/trainset.pt')
+trainset_ = torch.load(root + 'datasets/' + dataset + '_features/trainset.pth')
 #max_train = max(trainset_[0].max(), -trainset_[0].min())
 #train_data = trainset_[0]/max_train
-testset_  = torch.load(root + 'datasets/' + dataset + '_features/testset.pt')
+testset_  = torch.load(root + 'datasets/' + dataset + '_features/testset.pth')
 #test_data = testset_[0]/max_train
 trainset = data_utils.TensorDataset(trainset_[0], trainset_[1])
 testset = data_utils.TensorDataset(testset_[0], testset_[1])
@@ -84,7 +84,7 @@ for epoch in range(20):  # loop over the dataset multiple times
     if test_acc > max_test_acc:
       max_test_acc = test_acc
       best_model = model.float()
-      torch.save(best_model, './results/LSUN/models/LSUN_classifier_original.pt')
+      torch.save(best_model, './results/LSUN/models/LSUN_classifier_original.pth')
       
     print('Test accuracy: ' + str(test_acc))
 

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data_utils 
 from synthetic_data_generation import initialize_synthetic_sampler, sample_data_from_sampler
-from sup_functions import test_model, test_model_on_gen, weights_init
+from sup_functions import test_model, test_model_on_gen, weights_init, reconstruct_dataset_with_AE
 from models import Net, autoencoder
 
 root = '~/workspace/Projects/Journal_paper/'
@@ -28,18 +28,23 @@ full_data = torch.load('./data/data_train_test_'+str(nb_classes)+'_classes_'+str
 trainset = data_utils.TensorDataset(full_data['data_train'], full_data['labels_train'])
 testset = data_utils.TensorDataset(full_data['data_test'], full_data['labels_test'])
 rec_model = autoencoder(32)
-state = torch.load('./models/AE_32_code_size_500_classes_2000_samples.pth')
+state = torch.load('./models/AE_32_code_size_'+str(nb_classes)+'_classes_'+str(train_class_size)+'_samples.pth')
 rec_model.load_state_dict(state)
 
 print('Reconstructing data')
-trainset = reconstruct_dataset_with_AE(trainset, rec_model.cuda(), bs = 1000, real_data_ratio=0)
-  
+trainset = reconstruct_dataset_with_AE(trainset, rec_model.cuda(), bs = 1000, real_data_ratio=0)  
+testset = reconstruct_dataset_with_AE(testset, rec_model.cuda(), bs = 1000, real_data_ratio=0)
+
 train_loader = data_utils.DataLoader(trainset, batch_size=batch_size, shuffle = True)
 test_loader = data_utils.DataLoader(testset, batch_size=batch_size, shuffle = False)
 #rec_model = autoencoder(32)
 #state = torch.load('./models/AE_32_code_size_500_classes_2000_samples.pth')
 #rec_model.load_state(state)
+pretrained_model = torch.load('models/batch_classifier_500_classes_2000_samples.pth')
+acc = test_model(pretrained_model, train_loader)
+print('Accuracy of pretrained model on erconstructed dataset: ' + str(acc))
 print('Training')
+
 model = Net(nb_classes).cuda()
 criterion = nn.CrossEntropyLoss().cuda()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.99)

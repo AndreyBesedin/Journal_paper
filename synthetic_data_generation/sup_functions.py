@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from progress.bar import Bar
 from torch.utils.data import DataLoader
-
+from torch.utils.data import TensorDataset
 def test_model(classif_, data_loader_):
   total = 0
   correct = 0
@@ -61,4 +61,4 @@ def reconstruct_dataset_with_AE(dataset, rec_model, bs = 100, real_data_ratio=0)
     res_labels[current_index:current_index+current_batch_size] = train_y
     current_index+=current_batch_size 
   bar.finish()
-  return (res_data, res_labels)
+  return TensorDataset(res_data, res_labels)
