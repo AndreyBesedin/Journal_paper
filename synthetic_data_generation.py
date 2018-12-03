@@ -40,62 +40,38 @@ def gram_schmidt_columns(X):
   Q, R = np.linalg.qr(X)
   return Q
 
-def init_covariances(dim, nb_classes, max_axis, normalized=False):
+def compute_covariance(transform_matrix, D):
+  return np.matmul(np.matmul(transform_matrix.transpose(), np.diag(D)), transform_matrix)
+  
+def init_covariances(dim, nb_classes, max_axis):
   print('Initializing the matrix')
   init_matrix = np.random.rand(dim, dim)*2-1
   print('Performing Gramm-Schmidt')
-  O = gram_schmidt_columns(init_matrix)
-  print('Getting random diagonal matrix')
-  class_cov_matrices = {}
+  transform_matrix = gram_schmidt_columns(init_matrix)
+  D_vectors = {}
   bar = Bar('Initializing the covariances', max=nb_classes)
   for idx_class in range(nb_classes):
     bar.next()
-    D = np.array([line*np.random.rand() for line in np.eye(dim)])*max_axis
-#    print('computing unnormalized covariation matrix')
-    C = np.matmul(np.matmul(O.transpose(), D), O)
-    if normalized:
-#      print('Normalizing covariance matrix')
-      diag_C = C.diagonal()
-      E = np.eye(dim)
-      for idx in range(dim):
-        E[idx][idx]*=(diag_C[idx]**(-1/2))
-      class_cov_matrices[idx_class] = np.matmul(np.matmul(E, C), E)
-    else:
-      class_cov_matrices[idx_class] = C
-    if not np.allclose(class_cov_matrices[idx_class], class_cov_matrices[idx_class].T, atol=1e-17):
-      print('Covarition matrix should be symmetric, break')
+    D = np.array([line*np.random.rand() for line in np.eye(dim)])
+    D=D/D.max()*max_axis
+    D_vectors[idx_class] = D.diagonal()
+    C = np.matmul(np.matmul(transform_matrix.transpose(), D), transform_matrix)
+    if not np.allclose(C, C.T, atol=1e-17):
       raise('Covarition matrix should be symmetric, break')
   bar.finish()
-  return class_cov_matrices
+  return transform_matrix, D_vectors
 
-def initialize_synthetic_sampler(dim, nb_classes, intra_class_distance, max_axis=1, epsilon=1e-3):
-  means_ = init_means(dim, nb_classes, intra_class_distance, epsilon)
-  covariances = init_covariances(dim, nb_classes, max_axis, False)
-  data_class_sampler = {}
-  for idx_class in range(nb_classes):
-    data_class_sampler[idx_class] = mv_n.MultivariateNormal(torch.DoubleTensor(means_[idx_class]), torch.DoubleTensor(covariances[idx_class]))
-  return data_class_sampler
-    
-def sample_data_from_sampler(data_sampler, samples_per_class):
-  feature_size = data_sampler[0].sample().shape[0]
-  nb_of_classes = len(data_sampler) 
-  data_size = nb_of_classes*samples_per_class
-  data_ = torch.zeros(data_size, feature_size)
-  labels_ = torch.zeros(data_size)
-  bar = Bar('Generating data ', max=nb_of_classes)
-  for idx_class in range(nb_of_classes):
-    bar.next()
-    data_[idx_class*samples_per_class:(idx_class+1)*samples_per_class] = data_sampler[idx_class].sample((samples_per_class,))
-    labels_[idx_class*samples_per_class:(idx_class+1)*samples_per_class] = idx_class
-  bar.finish()
-  return (data_, labels_)
-
+def sample_class(mean_, covariance_transform_, diagonal_, nb_of_samples_):
+  covariance = compute_covariance(covariance_transform_, diagonal_)
+  data_sampler = mv_n.MultivariateNormal(torch.DoubleTensor(mean_), torch.DoubleTensor(covariance))
+  return data_sampler.sample((nb_of_samples_,))
+  
 def sample_big_data(feature_size, nb_of_classes, samples_per_class, inter_class_distance=2):
   full_data = {}
   data_size = nb_of_classes*samples_per_class
   
-  means_ = init_means(feature_size, nb_of_classes, inter_class_distance)
-  covariances = init_covariances(feature_size, nb_of_classes, 1)
+  full_data['means_'] = init_means(feature_size, nb_of_classes, inter_class_distance)
+  full_data['covariance_transform'], full_data['covariance_diagonals'] = init_covariances(feature_size, nb_of_classes, 1)
   full_data['data_train'] = torch.zeros(data_size, feature_size)
   full_data['data_test'] = torch.zeros(data_size, feature_size)
   full_data['labels_train'] = torch.zeros(data_size)
@@ -104,7 +80,8 @@ def sample_big_data(feature_size, nb_of_classes, samples_per_class, inter_class_
   bar = Bar('Generating data ', max=nb_of_classes)
   for idx_class in range(nb_of_classes):
     bar.next()
-    data_sampler = mv_n.MultivariateNormal(torch.DoubleTensor(means_[idx_class]), torch.DoubleTensor(covariances[idx_class]))
+    covariance = compute_covariance(full_data['covariance_transform'], full_data['covariance_diagonals'][idx_class])
+    data_sampler = mv_n.MultivariateNormal(torch.DoubleTensor(full_data['means_'][idx_class]), torch.DoubleTensor(covariance))
     full_data['data_train'][idx_class*samples_per_class:(idx_class+1)*samples_per_class] = data_sampler.sample((samples_per_class,))
     full_data['data_test'][idx_class*samples_per_class:(idx_class+1)*samples_per_class] = data_sampler.sample((samples_per_class,))    
     full_data['labels_train'][idx_class*samples_per_class:(idx_class+1)*samples_per_class] = idx_class
@@ -112,19 +89,3 @@ def sample_big_data(feature_size, nb_of_classes, samples_per_class, inter_class_
   bar.finish()
   return full_data
 
-#fig = plt.figure()
-#ax = fig.add_subplot(111, projection='3d')
-#for classes in range(nb_classes):
-  #color = tuple(np.random.rand(3))
-  #for idx in range(50):
-    #p = data_class_sampler[classes].sample().numpy()
-    #ax.plot([p[0]], [p[1]], [p[2]], 'o', color = color)
-    
-#for classes in range(nb_classes):
-  #color = tuple(np.random.rand(3))
-  #for idx in range(100):
-    #p = data_class_sampler[classes].sample().numpy()
-    #plt.plot(p[0], p[1], 'o', color = color)
-    
-
-#plt.show()

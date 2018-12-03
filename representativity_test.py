@@ -1,134 +1,92 @@
+import argparse
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import matplotlib.pyplot as plt 
-from torch.utils.data import sampler
 import torch.utils.data as data_utils
-from torch.utils.data.sampler import SubsetRandomSampler
-from torch.utils.data import DataLoader
-from torch.utils.data import TensorDataset
-from progress.bar import Bar
-from torchvision import datasets, transforms
-from torch.autograd import Variable
+
 import synthetic_data_generation
-import sup_functions 
+import sup_functions
 import models
 
-import os
+parser = argparse.ArgumentParser()
+parser.add_argument('--dataset', required=True, help='MNIST | LSUN | Synthetic')
+parser.add_argument('--generator_type', default='autoencoder', help='autoencoder | CGAN | ACGAN')
+parser.add_argument('--code_size', default='32', help='Size of the code representation in autoencoder')
+parser.add_argument('--root', default='/home/besedin/workspace/Projects/Journal_paper/', help='path to dataset')
+parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
+parser.add_argument('--batch_size', type=int, default=100, help='input batch size')
+parser.add_argument('--image_size', type=int, default=64, help='the height / width of the input image to network')
+parser.add_argument('--niter', type=int, default=100, help='number of training epochs')
+parser.add_argument('--lr', type=float, default=0.001, help='learning rate, default=0.001')
+parser.add_argument('--betta1', type=float, default=0.02, help='trade-off coefficients for ae training')
+parser.add_argument('--betta2', type=float, default=1, help='trade-off coefficients for ae training')
 
-root = '~/workspace/Projects/Journal_paper/'
-dataset = 'synthetic'
-print('Loading data')
-opts = {
-  'batch_size': 1000,
-  'mode': 'multi-class',
-  'dataset': 'synthetic',
-  'test_every': 1,
-  'learning_rate': 0.001,
-  'number_of_epochs': 100,
-  'dim': 2048,
-  'nb_classes': 500,
-  'code_size': 32,
-  'betta': 0.1,
-  'samples_per_class_train': 2000,
-  'samples_per_class_test': 2000,
-  'predefined_sampler': False,
-  'load_data': True,
-  'add_noise': True,
-  'cuda_device': 0,
-  }
+parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default = 0.5')
+parser.add_argument('--cuda', action='store_true', help='enables cuda')
+parser.add_argument('--cuda_device', type=int, default=0, help='Cuda device to use')
+parser.add_argument('--load_classifier', action='store_true', help='if enabled, load pretrained classifier with corresponding characteristics')
+
+parser.add_argument('--manual_seed', type=int, help='manual seed')
+parser.add_argument('--MNIST_classes', type=int, default=10, help='nb of classes from MNIST by default')
+parser.add_argument('--LSUN_classes', type=int, default=30, help='nb of classes from MNIST by default')
+parser.add_argument('--optimizer', default='SGD', help='Adam, SGD')
+#Synthetic data options
+parser.add_argument('--nb_of_classes', default=100, type=int, help='number of classes in synthetic dataset')
+parser.add_argument('--class_size', default=100, type=int, help='number of elements in each class')
+parser.add_argument('--feature_size', default=2048, type=int, help='feature size in synthetic dataset')
+parser.add_argument('--generate_data', action='store_true', help='generates a new dataset if enabled, loads predefined otherwise')
+
+opts = parser.parse_args()
+opts.experiment_name = str(opts.nb_of_classes) +'_classes'
+if opts.dataset == 'Synthetic':
+  opts.experiment_name = opts.experiment_name + '_' + str(opts.class_size) + '_samples'
   
-torch.cuda.set_device(opts['cuda_device'])
-code_size = opts['code_size']
-nb_classes = opts['nb_classes']
-trainset, testset, data_sampler = {}, {}, {}
+print(opts)
+if opts.manual_seed is None:
+  opts.manual_seed = random.randint(1, 10000)
+print("Random Seed: ", opts.manual_seed)
+random.seed(opts.manual_seed)
+torch.manual_seed(opts.manual_seed)
 
+if torch.cuda.is_available() and not opts.cuda:
+  print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+    
+print('Loading data')
+trainset, testset = sup_functions.load_dataset(opts)
+train_loader = data_utils.DataLoader(trainset, batch_size=opts.batch_size, shuffle = True)
+test_loader = data_utils.DataLoader(testset, batch_size=opts.batch_size, shuffle = False)
+classifier = sup_functions.init_classifier(opts)
+gen_model = sup_functions.init_generative_model(opts)
 
-if opts['load_data']:
-  full_data = torch.load('./data/data_train_test_'+str(opts['nb_classes'])+'_classes_'+str(opts['samples_per_class_train'])+'_samples.pth')
-  trainset = data_utils.TensorDataset(full_data['data_train'], full_data['labels_train'])
-  testset = data_utils.TensorDataset(full_data['data_test'], full_data['labels_test'])
-  #trainset = torch.load('./data/trainset_'+ str(opts['nb_classes']) +'_classes.pth')
-  #testset = torch.load('./data/testset_'+ str(opts['nb_classes']) +'_classes.pth')
-else:
-  if opts['predefined_sampler']:
-    data_sampler = torch.load('./models/data_sampler_'+ str(opts['nb_classes']) +'_classes.pth')
-  else:
-    data_sampler = initialize_synthetic_sampler(opts['dim'], opts['nb_classes'], 1.7)
-  train_class_size, test_class_size = opts['samples_per_class_train'], opts['samples_per_class_test']
-  trainset_ = sample_data_from_sampler(data_sampler, train_class_size)
-  testset_ = sample_data_from_sampler(data_sampler, test_class_size)
-  trainset = data_utils.TensorDataset(trainset_[0], trainset_[1])
-  testset = data_utils.TensorDataset(testset_[0], testset_[1])  
+print(gen_model)
+criterion_AE = nn.MSELoss()
+criterion_classif = nn.MSELoss()
 
-train_loader = data_utils.DataLoader(trainset, batch_size=opts['batch_size'], shuffle = True)
-test_loader = data_utils.DataLoader(testset, batch_size=opts['batch_size'], shuffle = False)
+if opts.cuda:
+  gen_model = gen_model.cuda()
+  criterion_AE = criterion_AE.cuda()
+  criterion_classif = criterion_classif.cuda()
 
-autoencoder_model = autoencoder(code_size).cuda()
-#autoencoder_model.apply(weights_init)
-classifier_model = torch.load('./models/batch_classifier_'+ str(opts['nb_classes']) +'_classes_'+str(opts['samples_per_class_train'])+'_samples.pth')
-
-criterion_AE = nn.MSELoss().cuda()
-criterion_classif = nn.MSELoss().cuda()
-#optimizer = torch.optim.SGD(autoencoder_model.parameters(), lr=opts['learning_rate'], momentum=0.99)
-optimizer_main = torch.optim.Adam(autoencoder_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999),
+optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.9, 0.999),
                              weight_decay=1e-5)
-optimizer_class = torch.optim.Adam(autoencoder_model.parameters(), lr=opts['betta']*opts['learning_rate'],
-                             weight_decay=1e-7)
 
+print('Classification accuracy on the original testset: ' + str(sup_functions.test_classifier(classifier, test_loader)))
+max_test_acc = 0
 accuracies = []
-best_acc = 0
-acc = test_model(classifier_model, test_loader)
-print('Accuracy of pretrained model on the original testset: ' + str(acc))
-for epoch in range(opts['number_of_epochs']):
-  bar = Bar('Training: ', max=int(opts['nb_classes']*opts['samples_per_class_train']/opts['batch_size']))
-  for idx, (train_X, train_Y) in enumerate(train_loader):
-    bar.next()
-    inputs = train_X.cuda()
-    labels = train_Y.cuda()
-    optimizer_main.zero_grad()
-    #optimizer_class.zero_grad()
-    #
-#    img = Variable(inputs).cuda()
-    # ===================forward=====================
-    outputs = autoencoder_model(inputs)
-    
-    orig_classes = classifier_model(inputs)
-    classification_reconstructed = classifier_model(outputs)
-    
-    loss_classif = criterion_classif(classification_reconstructed, orig_classes)
-    loss_AE = criterion_AE(outputs, inputs)
-    #
-    #loss_classif.backward(retain_graph=True)
-    #
-    loss = opts['betta']*loss_classif + loss_AE
-    # ===================backward====================
-    loss.backward()
-    #optimizer_class.step()
-    optimizer_main.step()
-    
-    if idx%100==0:
-      #plt.plot(range(2048), inputs[0].cpu().detach().numpy(), label='in')
-      #plt.plot(range(2048), outputs[0].cpu().detach().numpy(), label='out')
-      #plt.legend()
-      #plt.savefig('imgs/epoch_'+str(epoch)+'_idx_'+str(idx)+'.png')
-      #plt.close()
-      print('epoch [{}/{}], loss:{:.4f}'
-          .format(epoch+1, opts['number_of_epochs'], loss.item()))
-    # ===================log========================
-  bar.finish()
-  print('epoch [{}/{}], loss:{:.4f}'
-          .format(epoch+1, opts['number_of_epochs'], loss.item()))
-  if epoch % opts['test_every'] == 0:
-    autoencoder_model.eval()
-    acc = test_model_on_gen(classifier_model, autoencoder_model, test_loader)
-    accuracies.append(acc)
-    torch.save(accuracies, 'results/representivity_AE_' + str(opts['code_size']) + '_code_size_' + str(opts['nb_classes']) +'_classes_'+str(opts['samples_per_class_train'])+'_samples.pth')
-    if acc>best_acc:
-      best_acc=acc
-      torch.save(autoencoder_model.state_dict(), 'models/AE_' +str(opts['code_size']) + '_code_size_' + str(opts['nb_classes']) +'_classes_'+str(opts['samples_per_class_train'])+'_samples.pth')
-    autoencoder_model.train()
-    print('Accuracy on reconstructed testset: ' + str(acc))
+for epoch in range(opts.niter):  # loop over the dataset multiple times
+  print('Training epoch ' + str(epoch))
+#  bar = Bar('Training: ', max=int(opts['nb_classes']*opts['samples_per_class_train']/opts['batch_size']))
+  sup_functions.train_gen_model(gen_model, classifier, train_loader, optimizer_gen, criterion_AE, criterion_classif, opts)
+  acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
+  accuracies.append(acc)
+  if accuracies[-1] > max_test_acc:
+    max_test_acc = accuracies[-1]
+    best_gen_model = gen_model
+    torch.save(best_gen_model, opts.root+'pretrained_models/'+opts.dataset+'_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth')
+      
+  print('Test accuracy: ' + str(accuracies[-1]))
 
-#torch.save(model.state_dict(), './conv_autoencoder_LSUN.pth')
+torch.save(accuracies, opts.root+'results/representativity_' + opts.dataset + '_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth' )
+print('Finished Training')

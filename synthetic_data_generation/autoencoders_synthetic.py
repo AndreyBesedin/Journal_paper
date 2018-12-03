@@ -72,11 +72,8 @@ classifier_model = torch.load('./models/batch_classifier_'+ str(opts['nb_classes
 
 criterion_AE = nn.MSELoss().cuda()
 criterion_classif = nn.MSELoss().cuda()
-#optimizer = torch.optim.SGD(autoencoder_model.parameters(), lr=opts['learning_rate'], momentum=0.99)
 optimizer_main = torch.optim.Adam(autoencoder_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999),
                              weight_decay=1e-5)
-optimizer_class = torch.optim.Adam(autoencoder_model.parameters(), lr=opts['betta']*opts['learning_rate'],
-                             weight_decay=1e-7)
 
 accuracies = []
 best_acc = 0
@@ -89,9 +86,6 @@ for epoch in range(opts['number_of_epochs']):
     inputs = train_X.cuda()
     labels = train_Y.cuda()
     optimizer_main.zero_grad()
-    #optimizer_class.zero_grad()
-    #
-#    img = Variable(inputs).cuda()
     # ===================forward=====================
     outputs = autoencoder_model(inputs)
     
@@ -100,13 +94,9 @@ for epoch in range(opts['number_of_epochs']):
     
     loss_classif = criterion_classif(classification_reconstructed, orig_classes)
     loss_AE = criterion_AE(outputs, inputs)
-    #
-    #loss_classif.backward(retain_graph=True)
-    #
     loss = opts['betta']*loss_classif + loss_AE
     # ===================backward====================
     loss.backward()
-    #optimizer_class.step()
     optimizer_main.step()
     
     if idx%100==0:

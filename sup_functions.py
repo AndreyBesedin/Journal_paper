@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-import models
+import models, synthetic_data_generation
 
 def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
   running_loss = 0.0
@@ -28,6 +28,28 @@ def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
       print('Iteration: %5d loss: %.3f' % (idx + 1, running_loss / 100))
       running_loss = 0.0
     
+def train_gen_model(gen_model_, classifier_, train_loader_, optimizer_gen_, criterion_AE_, criterion_classif_, opts):
+  for idx, (train_X, train_Y) in enumerate(train_loader_):
+    inputs = train_X.cuda()
+    labels = train_Y.cuda()
+    #if opts.cuda:
+      #inputs = inputs.cuda()
+      #labels = inputs.cuda()
+    optimizer_gen_.zero_grad()
+    # ===================forward=====================
+    outputs = gen_model_(inputs)
+    orig_classes = classifier_(inputs)
+    classification_reconstructed = classifier_(outputs)
+    loss_classif = criterion_classif_(classification_reconstructed, orig_classes.data)
+    loss_AE = criterion_AE_(outputs, inputs)
+    loss = opts.betta1*loss_classif + opts.betta2*loss_AE
+    # ===================backward====================
+    loss.backward()
+    optimizer_gen_.step()
+    if idx%100==0:
+      print('loss:{:.4f}'
+          .format(opts.niter, loss.item()))
+      
 def test_classifier(classif_, data_loader_):
   total = 0
   correct = 0
@@ -40,17 +62,20 @@ def test_classifier(classif_, data_loader_):
     correct += (predicted.cpu().long() == labels).sum().item()
   return correct/total*100
 
-def test_classifier_on_gen(classif_, autoenc, data_loader_):
+def test_classifier_on_generator(classif_, gen_model_, data_loader_):
+  #TODO add cases of models other than AE
   total = 0
   correct = 0
+  gen_model_.eval()
   for idx, (test_X,  test_Y) in enumerate(data_loader_):
-    input_test = autoenc(test_X.cuda())
+    input_test = gen_model_(test_X.cuda())
     outputs = classif_(input_test)
 #    outputs = classif_(test_X.cuda())
     _, predicted = torch.max(outputs.data, 1)
     labels = test_Y.long()
     total += labels.size(0)
     correct += (predicted.cpu().long() == labels).sum().item()
+  gen_model_.train()
   return correct/total*100
 
 def weights_init(m):
@@ -87,7 +112,19 @@ def reconstruct_dataset_with_AE(dataset, rec_model, bs = 100, real_data_ratio=0)
   bar.finish()
   return TensorDataset(res_data, res_labels)
 
-def load_classifier(opts):
+def init_generative_model(opts):
+  #TODO Add CGAN and ACGAN cases 
+  if opts.dataset == 'MNIST':
+    if opts.generator_type == 'autoencoder':
+      gen_model = models.autoencoder_MNIST(int(opts.code_size))
+  else:
+    if opts.generator_type == 'autoencoder':
+      gen_model = models.autoencoder_2048(int(opts.code_size))
+  if opts.cuda:
+    return gen_model.cuda()
+  return gen_model
+
+def init_classifier(opts):
   if opts.dataset == 'MNIST':
     opts.nb_of_classes = opts.MNIST_classes
     classifier = models.Classifier_MNIST_28x28(opts.nb_of_classes)
@@ -96,6 +133,9 @@ def load_classifier(opts):
     classifier = models.Classifier_2048_features(opts.nb_of_classes)
   else:
     classifier = models.Classifier_2048_features(opts.nb_of_classes)
+  if opts.load_classifier:
+    print('Loading pretrained classifier')
+    classifier = torch.load(opts.root+'pretrained_models/'+opts.dataset+'_batch_classifier_' + opts.experiment_name + '.pth')
   if opts.cuda:
     return classifier.cuda()
   return classifier
@@ -109,11 +149,11 @@ def load_dataset(opts):
     ])
     train_dataset = datasets.MNIST(root=opts.root+'datasets/MNIST/',
       train=True,
-      download=False,
+      download=True,
       transform=img_transform) 
     test_dataset = datasets.MNIST(root=opts.root+'datasets/MNIST/',
       train=False,
-      download=False,
+      download=True,
       transform=img_transform)
   elif opts.dataset=='LSUN':
     tensor_train = torch.load(opts.root + 'datasets/LSUN/trainset.pth')
@@ -121,10 +161,15 @@ def load_dataset(opts):
     train_dataset = TensorDataset(tensor_train[0], tensor_train[1])
     test_dataset = TensorDataset(tensor_test[0], tensor_test[1])
   elif opts.dataset=='Synthetic':
-    if opts.load_data:
-      full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
-    else:
-      full_data = sample_big_data(opts.feature_size, opts.nb_of_classes, opts.class_size)
+    full_data = False
+    if not opts.generate_data:
+      try:
+        full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
+      except IOError:
+        print('No data with corresponding characteristics found, creating new dataset')
+        pass
+    if not full_data:
+      full_data = synthetic_data_generation.sample_big_data(opts.feature_size, opts.nb_of_classes, opts.class_size)
       torch.save(full_data, opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
     train_dataset = TensorDataset(full_data['data_train'], full_data['labels_train'])
     test_dataset = TensorDataset(full_data['data_test'], full_data['labels_test'])

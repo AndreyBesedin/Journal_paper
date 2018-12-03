@@ -65,23 +65,41 @@ class Autoencoder_2048(nn.Module):
     return x
 
 
-
-class autoencoder2(nn.Module):
+class autoencoder_MNIST(nn.Module):
   def __init__(self, code_size):
-    def linear_block(in_, out_):
-      return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_))
-    
-    super(autoencoder2, self).__init__()
-    self.enc1 = linear_block(2048, 1024)
-    self.enc2 = linear_block(1024, code_size)
-    self.dec1 = linear_block(code_size, 1024)
-    self.dec2 = linear_block(1024, 2048)
-
+    super(autoencoder_MNIST, self).__init__()
+    self.encoder = nn.Sequential(
+      nn.Conv2d(1, 32, 5, 1, 2),
+      nn.BatchNorm2d(32),
+      nn.ReLU(True),
+      nn.MaxPool2d(2, stride=2), 
+      nn.Conv2d(32, 64, 5, 1, 2),
+      nn.BatchNorm2d(64),
+      nn.ReLU(True),
+      nn.MaxPool2d(2, stride=2),  # b, 8, 2, 2
+      nn.Conv2d(64, code_size, 5, 1, 2),
+      nn.BatchNorm2d(code_size),
+      nn.ReLU(True),
+      nn.MaxPool2d(7, stride=None)  # b, 8, 2, 2
+    )
+    self.decoder = nn.Sequential(
+      nn.ConvTranspose2d(code_size, 32, 7, stride=1, padding=0),  # b, 16, 5, 5
+      nn.BatchNorm2d(32),
+      nn.ReLU(True),
+      nn.ConvTranspose2d(32, 64, 6, stride=2, padding=1),  # b, 8, 15, 15
+      nn.BatchNorm2d(64),
+      nn.ReLU(True),
+      nn.ConvTranspose2d(64, 16, 7, stride=1, padding=0),  # b, 1, 28, 28
+      nn.BatchNorm2d(16),
+      nn.ReLU(True),
+      nn.ConvTranspose2d(16, 1, 7, stride=1, padding=0),  # b, 1, 28, 28
+      nn.Tanh()
+    )
   def forward(self, x):
-    x = F.relu(self.enc1(x))
-    x = F.relu(self.enc2(x))
-    x = F.relu(self.dec1(x))
-    x = self.dec2(x)
+    batch_size = x.size(0)
+    x = x.view(batch_size, 1, 28,28)
+    x = self.encoder(x)
+    x = self.decoder(x)
     return x
 
-    
+
