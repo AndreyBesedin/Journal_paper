@@ -46,9 +46,8 @@ def train_gen_model(gen_model_, classifier_, train_loader_, optimizer_gen_, crit
     # ===================backward====================
     loss.backward()
     optimizer_gen_.step()
-    if idx%100==0:
-      print('loss:{:.4f}'
-          .format(opts.niter, loss.item()))
+    if idx%10==0:
+      print('loss: ' + str(loss.item()))
       
 def test_classifier(classif_, data_loader_):
   total = 0

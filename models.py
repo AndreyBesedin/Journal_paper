@@ -37,12 +37,12 @@ class Classifier_2048_features(nn.Module):
     x = self.fc4(x)
     return x
   
-class Autoencoder_2048(nn.Module):
+class autoencoder_2048(nn.Module):
   def __init__(self, code_size):
     def linear_block(in_, out_):
 #      return nn.Sequential(nn.Linear(in_, out_), nn.ReLU(True))
       return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
-    super(Autoencoder_2048, self).__init__()
+    super(autoencoder_2048, self).__init__()
     self.encoder = nn.Sequential(
       linear_block(2048, 1024),
 #      linear_block(3072, 1024),
