@@ -119,6 +119,8 @@ def init_generative_model(opts):
   else:
     if opts.generator_type == 'autoencoder':
       gen_model = models.autoencoder_2048(int(opts.code_size))
+  if opts.load_gen_model:
+    gen_model = torch.load(opts.root+'pretrained_models/'+opts.dataset+'_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth')
   if opts.cuda:
     return gen_model.cuda()
   return gen_model
