@@ -43,19 +43,16 @@ parser.add_argument('--generate_data', action='store_true', help='generates a ne
 opts = parser.parse_args()
 
 print('Loading data')
-def set_experiment_name(opts):
-  experiment_name += (opts.dataset + '_')
-  experiment_name += (opts.generator_type + '_')*(opts.experiment_type!='batch_classification').real
-  
-  experiment_name = opts.dataset +
-  opts.dataset + '_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='AE').real + '_' + opts.experiment_name
+
 if opts.dataset=='MNIST':
   opts.nb_of_classes=opts.MNIST_classes
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes
-opts.experiment_name = str(opts.nb_of_classes) +'_classes'
-if opts.dataset == 'Synthetic':
-  opts.experiment_name = opts.experiment_name + '_' + str(opts.class_size) + '_samples'
+  
+AE_specific = ''
+if opts.generator_type == 'AE':
+  AE_specific = '_' + str(opts.code_size) + '_trade-off_' + str(opts.betta1) + '_'
+name_to_save = opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth'
   
 print(opts)
 if opts.manual_seed is None:
@@ -102,8 +99,8 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
   if accuracies[-1] > max_test_acc:
     max_test_acc = accuracies[-1]
     best_classifier = classifier
-    torch.save(best_classifier, opts.root+'pretrained_models/generalizability_classifier_' + opts.experiment_name + '.pth')      
+    torch.save(best_classifier, opts.root+'pretrained_models/generalizability_classifier_' + name_to_save + '.pth')      
   print('Test accuracy: ' + str(accuracies[-1]))
 
-  torch.save(accuracies, opts.root+'results/generalizability_accuracy_' + opts.experiment_name + '.pth' )
+  torch.save(accuracies, opts.root+'results/generalizability_accuracy_' + name_to_save + '.pth' )
 print('Finished Training')
