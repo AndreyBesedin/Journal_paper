@@ -12,8 +12,8 @@ import models, synthetic_data_generation
 def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
   running_loss = 0.0
   for idx, (train_X, train_Y) in enumerate(train_loader_):
-    inputs = train_X.cuda()
-    labels = train_Y.cuda()
+    inputs = train_X.float().cuda()
+    labels = train_Y.float().cuda()
     # zero the parameter gradients
     optimizer_.zero_grad()
 
@@ -31,8 +31,8 @@ def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
     
 def train_gen_model(gen_model_, classifier_, train_loader_, optimizer_gen_, criterion_AE_, criterion_classif_, opts):
   for idx, (train_X, train_Y) in enumerate(train_loader_):
-    inputs = train_X.cuda()
-    labels = train_Y.cuda()
+    inputs = train_X.float().cuda()
+    labels = train_Y.float().cuda()
     #if opts.cuda:
       #inputs = inputs.cuda()
       #labels = inputs.cuda()
@@ -54,7 +54,7 @@ def test_classifier(classif_, data_loader_):
   total = 0
   correct = 0
   for idx, (test_X, test_Y) in enumerate(data_loader_):
-    input_test = test_X.cuda()
+    input_test = test_X.float().cuda()
     outputs = classif_(input_test)
     _, predicted = torch.max(outputs.data, 1)
     labels = test_Y.long()
@@ -68,7 +68,7 @@ def test_classifier_on_generator(classif_, gen_model_, data_loader_):
   correct = 0
   gen_model_.eval()
   for idx, (test_X,  test_Y) in enumerate(data_loader_):
-    input_test = gen_model_(test_X.cuda())
+    input_test = gen_model_(test_X.float().cuda())
     outputs = classif_(input_test)
 #    outputs = classif_(test_X.cuda())
     _, predicted = torch.max(outputs.data, 1)

@@ -26,7 +26,7 @@ parser.add_argument('--cuda_device', type=int, default=0, help='Cuda device to u
 parser.add_argument('--manual_seed', type=int, help='manual seed')
 parser.add_argument('--MNIST_classes', type=int, default=10, help='nb of classes from MNIST by default')
 parser.add_argument('--LSUN_classes', type=int, default=30, help='nb of classes from MNIST by default')
-parser.add_argument('--optimizer', default='SGD', help='Adam, SGD')
+parser.add_argument('--optimizer', default='Adam', help='Adam, SGD')
 parser.add_argument('--load_classifier', action='store_true', help='if enabled, load pretrained classifier with corresponding characteristics')
 
 #Synthetic data options
@@ -39,9 +39,10 @@ opts = parser.parse_args()
 
 print(opts)
 for directory in ('results', 'pretrained_models', 'datasets'):
-  if not os.path.exists(opts.root+directory):
-    print('Creating a %s folder'.format(opts.root+directory))
-    os.makedirs(opts.root+directory)
+  folder_path = opts.root+directory
+  if not os.path.exists(folder_path):
+    print('Creating a %s folder' %(folder_path))
+    os.makedirs(folder_path)
   
 if opts.manual_seed is None:
   opts.manual_seed = random.randint(1, 10000)
@@ -58,7 +59,7 @@ if opts.dataset=='MNIST':
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes
   
-opts.experiment_name = opts.dataset + '_' + opts.nb_of_classes + '_classes'
+opts.experiment_name = opts.dataset + '_' + str(opts.nb_of_classes) + '_classes'
 
 trainset, testset = sup_functions.load_dataset(opts)
 train_loader = data_utils.DataLoader(trainset, batch_size=opts.batch_size, shuffle = True)
