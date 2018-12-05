@@ -27,6 +27,7 @@ parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. de
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--cuda_device', type=int, default=0, help='Cuda device to use')
 parser.add_argument('--load_classifier', action='store_true', help='if enabled, load pretrained classifier with corresponding characteristics')
+parser.add_argument('--load_gen_model', action='store_true', help='if enabled, load pretrained generative model')
 
 parser.add_argument('--manual_seed', type=int, help='manual seed')
 parser.add_argument('--MNIST_classes', type=int, default=10, help='nb of classes from MNIST by default')
@@ -39,6 +40,11 @@ parser.add_argument('--feature_size', default=2048, type=int, help='feature size
 parser.add_argument('--generate_data', action='store_true', help='generates a new dataset if enabled, loads predefined otherwise')
 
 opts = parser.parse_args()
+if opts.dataset=='MNIST':
+  opts.nb_of_classes=opts.MNIST_classes
+elif opts.dataset=='LSUN':
+  opts.nb_of_classes=opts.LSUN_classes
+  
 opts.experiment_name = str(opts.nb_of_classes) +'_classes'
 if opts.dataset == 'Synthetic':
   opts.experiment_name = opts.experiment_name + '_' + str(opts.class_size) + '_samples'
@@ -75,6 +81,7 @@ optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.9,
 print('Classification accuracy on the original testset: ' + str(sup_functions.test_classifier(classifier, test_loader)))
 max_test_acc = 0
 accuracies = []
+#TODO add score computation as in the paper
 for epoch in range(opts.niter):  # loop over the dataset multiple times
   print('Training epoch ' + str(epoch))
 #  bar = Bar('Training: ', max=int(opts['nb_classes']*opts['samples_per_class_train']/opts['batch_size']))
@@ -88,5 +95,6 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
       
   print('Test accuracy: ' + str(accuracies[-1]))
 
-torch.save(accuracies, opts.root+'results/representativity_' + opts.dataset + '_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth' )
+  torch.save(accuracies, opts.root+'results/representativity_' + opts.dataset + '_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth' )
+  
 print('Finished Training')

@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -98,7 +99,7 @@ def reconstruct_dataset_with_AE(dataset, rec_model, bs = 100, real_data_ratio=0)
   for idx, (train_x, train_y) in enumerate(data_loader):
       #call('nvidia-smi')
     bar.next()
-    inputs = train_x.cuda()
+    inputs = train_x.float().cuda()
     batch = {}
     if idx < real_data_ratio:
       batch = inputs
@@ -143,19 +144,23 @@ def init_classifier(opts):
   
 def load_dataset(opts):
   print('Loading ' + opts.dataset + ' data')
+  if not os.path.exists(opts.root+'datasets/'+opts.dataset):
+    os.makedirs(opts.root+'datasets/'+opts.dataset)
   if opts.dataset=='MNIST':
     img_transform = transforms.Compose([
       transforms.ToTensor(),
       transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
-    train_dataset = datasets.MNIST(root=opts.root+'datasets/MNIST/',
+    trainset = datasets.MNIST(root=opts.root+'datasets/MNIST/',
       train=True,
       download=True,
       transform=img_transform) 
-    test_dataset = datasets.MNIST(root=opts.root+'datasets/MNIST/',
+    train_dataset = TensorDataset(trainset.train_data.reshape(60000, 1, 28, 28), trainset.train_labels)
+    testset = datasets.MNIST(root=opts.root+'datasets/MNIST/',
       train=False,
       download=True,
       transform=img_transform)
+    test_dataset = TensorDataset(testset.test_data.reshape(10000, 1, 28, 28), testset.test_labels)
   elif opts.dataset=='LSUN':
     tensor_train = torch.load(opts.root + 'datasets/LSUN/trainset.pth')
     tensor_test  = torch.load(opts.root + 'datasets/LSUN/testset.pth')

@@ -1,3 +1,4 @@
+import os
 import argparse
 import random
 import torch
@@ -9,6 +10,7 @@ import torch.utils.data as data_utils
 import synthetic_data_generation
 import sup_functions
 import models
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='MNIST | LSUN | Synthetic')
@@ -36,6 +38,11 @@ parser.add_argument('--generate_data', action='store_true', help='generates a ne
 opts = parser.parse_args()
 
 print(opts)
+for directory in ('results', 'pretrained_models', 'datasets'):
+  if not os.path.exists(opts.root+directory):
+    print('Creating a %s folder'.format(opts.root+directory))
+    os.makedirs(opts.root+directory)
+  
 if opts.manual_seed is None:
   opts.manual_seed = random.randint(1, 10000)
 print("Random Seed: ", opts.manual_seed)
@@ -46,13 +53,20 @@ if torch.cuda.is_available() and not opts.cuda:
   print("WARNING: You have a CUDA device, so you should probably run with --cuda")
     
 print('Loading data')
-experiment_name = str(opts.nb_of_classes) +'_classes'
-if opts.dataset == 'Synthetic':
-  experiment_name = experiment_name + '_' + str(opts.class_size) + '_samples'
+if opts.dataset=='MNIST':
+  opts.nb_of_classes=opts.MNIST_classes
+elif opts.dataset=='LSUN':
+  opts.nb_of_classes=opts.LSUN_classes
+  
+opts.experiment_name = opts.dataset + '_' + opts.nb_of_classes + '_classes'
+
 trainset, testset = sup_functions.load_dataset(opts)
 train_loader = data_utils.DataLoader(trainset, batch_size=opts.batch_size, shuffle = True)
 test_loader = data_utils.DataLoader(testset, batch_size=opts.batch_size, shuffle = False)
 classifier = sup_functions.init_classifier(opts)
+if opts.load_classifier:
+  classifier_dict = torch.load(opts.root+'pretrained_models/batch_classifier_' + opts.experiment_name +'.pth')
+  classifier.load_state_dict(classifier_dict)
 
 criterion = nn.CrossEntropyLoss(); 
 if opts.cuda: criterion = criterion.cuda()
@@ -70,9 +84,9 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
   if accuracies[epoch] > max_test_acc:
     max_test_acc = accuracies[epoch]
     best_classifier = classifier
-    torch.save(best_classifier, opts.root+'pretrained_models/'+opts.dataset+'_batch_classifier_' + experiment_name + '.pth')
+    torch.save(best_classifier.state_dict(), opts.root+'pretrained_models/batch_classifier_' + opts.experiment_name +'.pth')
       
   print('Test accuracy: ' + str(accuracies[epoch]))
 
-torch.save(accuracies,opts.root+'results/' + opts.dataset + '_batch_classification_accuracy_' + experiment_name + '.pth' )
+  torch.save(accuracies,opts.root+'results/batch_classification_accuracy_' + opts.experiment_name + '.pth' )
 print('Finished Training')
