@@ -114,6 +114,7 @@ def reconstruct_dataset_with_AE(dataset, rec_model, bs = 100, real_data_ratio=0)
 
 def init_generative_model(opts):
   #TODO Add CGAN and ACGAN cases 
+  gen_model = False
   if opts.dataset == 'MNIST':
     if opts.generator_type == 'autoencoder':
       gen_model = models.autoencoder_MNIST(int(opts.code_size))
@@ -121,6 +122,8 @@ def init_generative_model(opts):
     if opts.generator_type == 'autoencoder':
       gen_model = models.autoencoder_2048(int(opts.code_size))
   if opts.load_gen_model:
+    #TODO correct the name for loading
+    print('Loading generator from %s' % )
     gen_model_state = torch.load(opts.root+'pretrained_models/'+opts.dataset+'_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth')
     gen_model.load_state_dict(gen_model_state)
   if opts.cuda:
