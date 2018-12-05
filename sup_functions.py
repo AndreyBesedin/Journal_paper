@@ -123,7 +123,7 @@ def init_generative_model(opts):
       gen_model = models.autoencoder_2048(int(opts.code_size))
   if opts.load_gen_model:
     #TODO correct the name for loading
-    print('Loading generator from %s' % )
+    print('Loading generator from')
     gen_model_state = torch.load(opts.root+'pretrained_models/'+opts.dataset+'_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth')
     gen_model.load_state_dict(gen_model_state)
   if opts.cuda:
