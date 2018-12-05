@@ -121,7 +121,8 @@ def init_generative_model(opts):
     if opts.generator_type == 'autoencoder':
       gen_model = models.autoencoder_2048(int(opts.code_size))
   if opts.load_gen_model:
-    gen_model = torch.load(opts.root+'pretrained_models/'+opts.dataset+'_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth')
+    gen_model_state = torch.load(opts.root+'pretrained_models/'+opts.dataset+'_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth')
+    gen_model.load_state_dict(gen_model_state)
   if opts.cuda:
     return gen_model.cuda()
   return gen_model
@@ -137,7 +138,8 @@ def init_classifier(opts):
     classifier = models.Classifier_2048_features(opts.nb_of_classes)
   if opts.load_classifier:
     print('Loading pretrained classifier')
-    classifier = torch.load(opts.root+'pretrained_models/'+opts.dataset+'_batch_classifier_' + opts.experiment_name + '.pth')
+    classifier_state = torch.load(opts.root+'pretrained_models/batch_classifier_' + opts.dataset + '_' + str(opts.nb_of_classes) + '_classes.pth')
+    classifier.load_state_dict(classifier_state)
   if opts.cuda:
     return classifier.cuda()
   return classifier

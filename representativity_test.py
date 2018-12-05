@@ -12,7 +12,7 @@ import models
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='MNIST | LSUN | Synthetic')
-parser.add_argument('--generator_type', default='autoencoder', help='autoencoder | CGAN | ACGAN')
+parser.add_argument('--generator_type', default='AE', help='AE | CGAN | ACGAN')
 parser.add_argument('--code_size', default='32', help='Size of the code representation in autoencoder')
 parser.add_argument('--root', default='/home/besedin/workspace/Projects/Journal_paper/', help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
@@ -44,10 +44,11 @@ if opts.dataset=='MNIST':
   opts.nb_of_classes=opts.MNIST_classes
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes
-  
-opts.experiment_name = str(opts.nb_of_classes) +'_classes'
-if opts.dataset == 'Synthetic':
-  opts.experiment_name = opts.experiment_name + '_' + str(opts.class_size) + '_samples'
+
+AE_specific = ''
+if opts.generator_type == 'AE':
+  AE_specific = '_' + str(opts.code_size) + '_trade-off_' + str(opts.betta1) + '_'
+name_to_save = opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth'
   
 print(opts)
 if opts.manual_seed is None:
@@ -63,6 +64,7 @@ print('Loading data')
 trainset, testset = sup_functions.load_dataset(opts)
 train_loader = data_utils.DataLoader(trainset, batch_size=opts.batch_size, shuffle = True)
 test_loader = data_utils.DataLoader(testset, batch_size=opts.batch_size, shuffle = False)
+opts.load_classifier = True
 classifier = sup_functions.init_classifier(opts)
 gen_model = sup_functions.init_generative_model(opts)
 
@@ -91,10 +93,10 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
   if accuracies[-1] > max_test_acc:
     max_test_acc = accuracies[-1]
     best_gen_model = gen_model
-    torch.save(best_gen_model, opts.root+'pretrained_models/'+opts.dataset+'_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth')
+    torch.save(best_gen_model,opts.root + 'pretrained_models/representativity_' + name_to_save)
       
   print('Test accuracy: ' + str(accuracies[-1]))
 
-  torch.save(accuracies, opts.root+'results/representativity_' + opts.dataset + '_' + opts.generator_type + str(opts.code_size)*(opts.generator_type=='autoencoder').real + '_' + opts.experiment_name + '.pth' )
+  torch.save(accuracies, opts.root+'results/representativity_accuracy_' + name_to_save)
   
 print('Finished Training')
