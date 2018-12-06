@@ -77,7 +77,10 @@ if opts.cuda:
   criterion_AE = criterion_AE.cuda()
   criterion_classif = criterion_classif.cuda()
 
-optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.9, 0.999),
+if opts.optimizer == 'SGD':
+  optimizer_gen = torch.optim.SGD(gen_model.parameters(), lr=opts.lr)
+else:
+  optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.5, 0.999),
                              weight_decay=1e-5)
 
 print('Classification accuracy on the original testset: ' + str(sup_functions.test_classifier(classifier, test_loader)))

@@ -41,13 +41,15 @@ def train_gen_model(gen_model_, classifier_, train_loader_, optimizer_gen_, crit
     outputs = gen_model_(inputs)
     orig_classes = classifier_(inputs)
     classification_reconstructed = classifier_(outputs)
-    loss_classif = criterion_classif_(classification_reconstructed, orig_classes.data)
+    loss_classif = criterion_classif_(classification_reconstructed, orig_classes)
     loss_AE = criterion_AE_(outputs, inputs)
     loss = opts.betta1*loss_classif + opts.betta2*loss_AE
     # ===================backward====================
     loss.backward()
     optimizer_gen_.step()
     if idx%10==0:
+      print('loss AE: ' + str(loss_AE.item()))
+      print('loss classif: ' + str(loss_classif.item()))
       print('loss: ' + str(loss.item()))
       
 def test_classifier(classif_, data_loader_):
