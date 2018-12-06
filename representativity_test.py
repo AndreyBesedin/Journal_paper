@@ -19,7 +19,7 @@ parser.add_argument('--workers', type=int, help='number of data loading workers'
 parser.add_argument('--batch_size', type=int, default=100, help='input batch size')
 parser.add_argument('--image_size', type=int, default=64, help='the height / width of the input image to network')
 parser.add_argument('--niter', type=int, default=100, help='number of training epochs')
-parser.add_argument('--lr', type=float, default=0.001, help='learning rate, default=0.001')
+parser.add_argument('--lr', type=float, default=0.01, help='learning rate, default=0.001')
 parser.add_argument('--betta1', type=float, default=0.02, help='trade-off coefficients for ae training')
 parser.add_argument('--betta2', type=float, default=1, help='trade-off coefficients for ae training')
 
@@ -66,21 +66,19 @@ train_loader = data_utils.DataLoader(trainset, batch_size=opts.batch_size, shuff
 test_loader = data_utils.DataLoader(testset, batch_size=opts.batch_size, shuffle = False)
 opts.load_classifier = True
 classifier = sup_functions.init_classifier(opts)
+#classifier.eval()
 gen_model = sup_functions.init_generative_model(opts)
 
-print(gen_model)
 criterion_AE = nn.MSELoss()
 criterion_classif = nn.MSELoss()
+optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta2, betas=(0.9, 0.999), weight_decay=1e-5)
+optimizer_classif = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta1, betas=(0.9, 0.999), weight_decay=1e-5)
 
 if opts.cuda:
   gen_model = gen_model.cuda()
   criterion_AE = criterion_AE.cuda()
   criterion_classif = criterion_classif.cuda()
 
-if opts.optimizer == 'SGD':
-  optimizer_gen = torch.optim.SGD(gen_model.parameters(), lr=opts.lr)
-else:
-  optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.9, 0.999), weight_decay=1e-5)
 
 print('Classification accuracy on the original testset: ' + str(sup_functions.test_classifier(classifier, test_loader)))
 max_test_acc = 0
@@ -90,8 +88,51 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
   opts.epoch = epoch
   print('Training epoch ' + str(epoch))
 #  bar = Bar('Training: ', max=int(opts['nb_classes']*opts['samples_per_class_train']/opts['batch_size']))
-  sup_functions.train_gen_model(gen_model, classifier, train_loader, optimizer_gen, criterion_AE, criterion_classif, opts)
+  for idx, (train_X, train_Y) in enumerate(train_loader):
+    inputs = train_X.float()
+    labels = train_Y
+    if opts.cuda:
+      inputs = inputs.cuda()
+      labels = labels.cuda()
+    #if opts.cuda:
+      #inputs = inputs.cuda()
+      #labels = inputs.cuda()
+    # ===================forward=====================
+    
+    if opts.betta1!=0:
+      outputs = gen_model(inputs)
+      orig_classes = classifier(inputs)
+      orig_classes.require_grad=False
+      classification_reconstructed = classifier(outputs)
+      loss_classif = criterion_classif(classification_reconstructed, orig_classes)
+      loss_classif.backward()
+      optimizer_classif.step()
+      optimizer_classif.zero_grad()
+    if opts.betta2!=0:
+      outputs = gen_model(inputs)
+      loss_AE = criterion_AE(outputs, inputs)
+      loss_AE.backward()
+      optimizer_gen.step()
+      optimizer_gen.zero_grad()
+    
+    if idx%100==0:
+      if opts.betta1==0:
+        print('epoch [{}/{}], AE loss: {:.4f}'
+          .format(opts.epoch+1, opts.niter,  loss_AE.item()))
+      elif opts.betta1==0:
+        print('epoch [{}/{}], classification loss: {:.4f}'
+          .format(opts.epoch+1, opts.niter,  loss_classif.item()))
+      else:
+        print('epoch [{}/{}], classification loss: {:.4f}, AE loss: {:.4f}'
+          .format(opts.epoch+1, opts.niter, loss_classif.item(), loss_AE.item()))
+    # ===================backward====================
+    
+
+  gen_model.eval()
+  #classifier.eval()
   acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
+  #classifier.train()
+  gen_model.train()
   accuracies.append(acc)
   if accuracies[-1] > max_test_acc:
     max_test_acc = accuracies[-1]

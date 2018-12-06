@@ -206,6 +206,8 @@ def main(arg1):
   for epoch in range(opts['number_of_epochs']):
     for idx_batch, data in enumerate(train_loader):
       img, _ = data
+      print(img.mean())
+      print(img.std())
       img = Variable(img).cuda()
       # Comuting the output of the classifier on original data (goal probabilities)
       # ===================forward=====================
@@ -227,7 +229,7 @@ def main(arg1):
           loss_classif.backward(retain_graph=True)
           optimizer_class.step()
         loss = criterion_AE(output, img)
-    
+        print(loss)
       #else:
         #orig_classes = classifier(img)
         #classification_reconstructed = classifier(output)

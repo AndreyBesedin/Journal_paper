@@ -2,12 +2,21 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from PIL import Image
 from progress.bar import Bar
+from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import models, synthetic_data_generation
+import torchvision.transforms.functional as TF
+
+def to_img(x):
+  x = 0.5 * (x + 1)
+  x = x.clamp(0, 1)
+  x = x.view(x.size(0), 1, 28, 28)
+  return x
 
 def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
   running_loss = 0.0
@@ -29,27 +38,41 @@ def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
       print('Iteration: %5d loss: %.3f' % (idx + 1, running_loss / 100))
       running_loss = 0.0
     
-def train_gen_model(gen_model_, classifier_, train_loader_, optimizer_gen_, criterion_AE_, criterion_classif_, opts):
-  for idx, (train_X, train_Y) in enumerate(train_loader_):
-    inputs = train_X.float().cuda()
+def train_gen_model(gen_model, classifier, train_loader, opts):
+  optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.9, 0.999), weight_decay=1e-5)
+  criterion_AE = nn.MSELoss()
+  criterion_classif = nn.MSELoss()
+  criterion_AE = criterion_AE.cuda()
+  criterion_classif = criterion_classif.cuda()
+  optimizer_gen.zero_grad()
+  #optimizer_classif.zero_grad()
+  for idx, (train_X, train_Y) in enumerate(train_loader):
+    inputs = train_X.float()
+    inputs = Variable(inputs).cuda()
     labels = train_Y.float().cuda()
+    
     #if opts.cuda:
       #inputs = inputs.cuda()
       #labels = inputs.cuda()
-    optimizer_gen_.zero_grad()
     # ===================forward=====================
-    outputs = gen_model_(inputs)
-    orig_classes = classifier_(inputs)
-    classification_reconstructed = classifier_(outputs)
-    loss_classif = criterion_classif_(classification_reconstructed, orig_classes)
-    loss_AE = criterion_AE_(outputs, inputs)
-    loss = opts.betta1*loss_classif + opts.betta2*loss_AE
+    #outputs = gen_model(inputs)
+    #orig_classes = classifier(inputs)
+    #classification_reconstructed = classifier(outputs)
+    #loss_classif = criterion_classif(classification_reconstructed, orig_classes)
+    #loss_classif.backward()
+    #optimizer_classif.step()
+    #optimizer_classif.zero_grad()
+    loss_classif = 0
+    outputs = gen_model(inputs)
+    loss_AE = criterion_AE(outputs, inputs)
     # ===================backward====================
-    loss.backward()
-    optimizer_gen_.step()
+    loss_AE.backward()
+    optimizer_gen.step()
+    optimizer_gen.zero_grad()
     if idx%100==0:
-      print('epoch [{}/{}], total loss:{:.4f}, classification loss: {:.4f}, AE loss: {:.4f}'
-          .format(opts.epoch+1, opts.niter, loss.item(), loss_classif.item(), loss_AE.item()))
+      print('epoch [{}/{}], classification loss: {:.4f}, AE loss: {:.4f}'
+          .format(opts.epoch+1, opts.niter, loss_classif, loss_AE.item()))
+  return gen_model
       
 def test_classifier(classif_, data_loader_):
   total = 0
@@ -148,6 +171,38 @@ def init_classifier(opts):
     return classifier.cuda()
   return classifier
   
+class TensorDatasetMNIST():
+  def __init__(self, *tensors, transform=None):
+    self.transform = transform
+    assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
+    self.tensors = tensors
+
+  def __getitem__(self, index):
+    img = self.tensors[0][index].squeeze()
+    img = Image.fromarray(img.numpy(), mode='L')
+    if self.transform is not None:
+      img = self.transform(img)
+    return (img.reshape(1, 28, 28), self.tensors[1][index])
+
+  def __len__(self):
+    return self.tensors[0].size(0)
+  
+class TensorDataset2048():
+  def __init__(self, *tensors, transform=None):
+    self.transform = transform
+    assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
+    self.tensors = tensors
+
+  def __getitem__(self, index):
+    img = self.tensors[0][index].squeeze()
+    img = Image.fromarray(img.reshape(2048,1).numpy(), mode='L')
+    if self.transform is not None:
+      img = self.transform(img)
+    return (img.reshape(2048), self.tensors[1][index])
+
+  def __len__(self):
+    return self.tensors[0].size(0) 
+  
 def load_dataset(opts):
   print('Loading ' + opts.dataset + ' data')
   if not os.path.exists(opts.root+'datasets/'+opts.dataset):
@@ -161,15 +216,21 @@ def load_dataset(opts):
       train=True,
       download=True,
       transform=img_transform) 
-    train_dataset = TensorDataset(trainset.train_data.reshape(60000, 1, 28, 28), trainset.train_labels)
+    train_dataset = TensorDatasetMNIST(trainset.train_data.reshape(60000, 1, 28, 28), trainset.train_labels, transform=img_transform)
     testset = datasets.MNIST(root=opts.root+'datasets/MNIST/',
       train=False,
       download=True,
       transform=img_transform)
-    test_dataset = TensorDataset(testset.test_data.reshape(10000, 1, 28, 28), testset.test_labels)
+    test_dataset = TensorDatasetMNIST(testset.test_data.reshape(10000, 1, 28, 28), testset.test_labels, transform=img_transform)
   elif opts.dataset=='LSUN':
+    img_transform = transforms.Compose([
+      transforms.ToTensor(),
+      transforms.Normalize((0.46, 0.46, 0.46), (0.35, 0.35, 0.35))
+    ])
     tensor_train = torch.load(opts.root + 'datasets/LSUN/trainset.pth')
     tensor_test  = torch.load(opts.root + 'datasets/LSUN/testset.pth')
+    #train_dataset = TensorDataset2048(tensor_train[0], tensor_train[1], transform=img_transform)
+    #test_dataset = TensorDataset2048(tensor_test[0], tensor_test[1], transform=img_transform)
     train_dataset = TensorDataset(tensor_train[0], tensor_train[1])
     test_dataset = TensorDataset(tensor_test[0], tensor_test[1])
   elif opts.dataset=='Synthetic':
