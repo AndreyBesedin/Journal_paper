@@ -32,7 +32,7 @@ parser.add_argument('--load_gen_model', action='store_true', help='if enabled, l
 parser.add_argument('--manual_seed', type=int, help='manual seed')
 parser.add_argument('--MNIST_classes', type=int, default=10, help='nb of classes from MNIST by default')
 parser.add_argument('--LSUN_classes', type=int, default=30, help='nb of classes from MNIST by default')
-parser.add_argument('--optimizer', default='SGD', help='Adam, SGD')
+parser.add_argument('--optimizer', default='Adam', help='Adam, SGD')
 #Synthetic data options
 parser.add_argument('--nb_of_classes', default=100, type=int, help='number of classes in synthetic dataset')
 parser.add_argument('--class_size', default=100, type=int, help='number of elements in each class')
@@ -80,14 +80,14 @@ if opts.cuda:
 if opts.optimizer == 'SGD':
   optimizer_gen = torch.optim.SGD(gen_model.parameters(), lr=opts.lr)
 else:
-  optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.5, 0.999),
-                             weight_decay=1e-5)
+  optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.9, 0.999), weight_decay=1e-5)
 
 print('Classification accuracy on the original testset: ' + str(sup_functions.test_classifier(classifier, test_loader)))
 max_test_acc = 0
 accuracies = []
 #TODO add score computation as in the paper
 for epoch in range(opts.niter):  # loop over the dataset multiple times
+  opts.epoch = epoch
   print('Training epoch ' + str(epoch))
 #  bar = Bar('Training: ', max=int(opts['nb_classes']*opts['samples_per_class_train']/opts['batch_size']))
   sup_functions.train_gen_model(gen_model, classifier, train_loader, optimizer_gen, criterion_AE, criterion_classif, opts)

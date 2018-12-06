@@ -47,10 +47,9 @@ def train_gen_model(gen_model_, classifier_, train_loader_, optimizer_gen_, crit
     # ===================backward====================
     loss.backward()
     optimizer_gen_.step()
-    if idx%10==0:
-      print('loss AE: ' + str(loss_AE.item()))
-      print('loss classif: ' + str(loss_classif.item()))
-      print('loss: ' + str(loss.item()))
+    if idx%100==0:
+      print('epoch [{}/{}], total loss:{:.4f}, classification loss: {:.4f}, AE loss: {:.4f}'
+          .format(opts.epoch+1, opts.niter, loss.item(), loss_classif.item(), loss_AE.item()))
       
 def test_classifier(classif_, data_loader_):
   total = 0
