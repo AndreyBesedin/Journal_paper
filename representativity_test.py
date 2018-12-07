@@ -39,15 +39,18 @@ parser.add_argument('--class_size', default=100, type=int, help='number of eleme
 parser.add_argument('--feature_size', default=2048, type=int, help='feature size in synthetic dataset')
 parser.add_argument('--generate_data', action='store_true', help='generates a new dataset if enabled, loads predefined otherwise')
 
+
 opts = parser.parse_args()
 if opts.dataset=='MNIST':
   opts.nb_of_classes=opts.MNIST_classes
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes
 
+torch.cuda.set_device(opts.cuda_device)
+
 AE_specific = ''
 if opts.generator_type == 'AE':
-  AE_specific = '_' + str(opts.code_size) + '_trade-off_' + str(opts.betta1) + '_'
+  AE_specific = '_' + str(opts.code_size) + '_cl_loss_' + str(opts.betta1) + '_rec_loss_' +str(opts.betta2) +'_'
 name_to_save = opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth'
   
 print(opts)
