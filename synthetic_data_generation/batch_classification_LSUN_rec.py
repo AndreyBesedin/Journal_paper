@@ -6,7 +6,7 @@ import torch.utils.data as data_utils
 from synthetic_data_generation import initialize_synthetic_sampler, sample_data_from_sampler
 from sup_functions import test_model, test_model_on_gen, weights_init, reconstruct_dataset_with_AE
 from models import Net, autoencoder
-
+import new_models
 root = '~/workspace/Projects/Journal_paper/'
 dataset = 'LSUN'
 print('Loading data')
@@ -37,8 +37,10 @@ test_loader = data_utils.DataLoader(testset, batch_size=batch_size, shuffle = Fa
 #rec_model = autoencoder(32)
 #state = torch.load('./models/AE_32_code_size_500_classes_2000_samples.pth')
 #rec_model.load_state(state)
-pretrained_model = torch.load('models/LSUN_classifier_original.pth')
-acc = test_model(pretrained_model, train_loader)
+pretrained_model_dict = torch.load('../pretrained_models/batch_classifier_LSUN_30_classes.pth')
+pretrained_model = new_models.Classifier_2048_features(30)
+pretrained_model.load_state_dict(pretrained_model_dict)
+acc = test_model(pretrained_model.cuda(), train_loader)
 print('Accuracy of pretrained model on erconstructed dataset: ' + str(acc))
 print('Training')
 
