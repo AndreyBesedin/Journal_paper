@@ -119,7 +119,7 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
       if opts.betta1==0:
         print('epoch [{}/{}], AE loss: {:.4f}'
           .format(opts.epoch+1, opts.niter,  loss_AE.item()))
-      elif opts.betta1==0:
+      elif int(opts.betta2)==0:
         print('epoch [{}/{}], classification loss: {:.4f}'
           .format(opts.epoch+1, opts.niter,  loss_classif.item()))
       else:

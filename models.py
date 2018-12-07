@@ -57,7 +57,7 @@ class autoencoder_2048(nn.Module):
       linear_block(128, 512),
       linear_block(512, 1024),
       nn.Linear(1024, 2048),
-#      nn.Tanh()
+      nn.Tanh()
     )
   def forward(self, x):
     x = self.encoder(x)

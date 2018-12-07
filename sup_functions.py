@@ -231,8 +231,8 @@ def load_dataset(opts):
     tensor_test  = torch.load(opts.root + 'datasets/LSUN/testset.pth')
     #train_dataset = TensorDataset2048(tensor_train[0], tensor_train[1], transform=img_transform)
     #test_dataset = TensorDataset2048(tensor_test[0], tensor_test[1], transform=img_transform)
-    train_dataset = TensorDataset(tensor_train[0], tensor_train[1])
-    test_dataset = TensorDataset(tensor_test[0], tensor_test[1])
+    train_dataset = TensorDataset((tensor_train[0]-0.45)/13, tensor_train[1])
+    test_dataset = TensorDataset((tensor_test[0]-0.45)/13, tensor_test[1])
   elif opts.dataset=='Synthetic':
     full_data = False
     if not opts.generate_data:
