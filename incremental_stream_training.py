@@ -1,0 +1,148 @@
+import argparse
+import random
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.utils.data as data_utils
+from torch.utils.data.sampler import SubsetRandomSampler
+
+import synthetic_data_generation
+import sup_functions
+import models
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--dataset', required=True, help='MNIST | LSUN | Synthetic')
+parser.add_argument('--experiment_type', default='generalizability', help='batch_classification | representativity | generalizability | incremental_stream | unordered_stream')
+parser.add_argument('--generator_type', default='AE', help='AE | CGAN | ACGAN')
+parser.add_argument('--code_size', default='32', help='Size of the code representation in autoencoder')
+parser.add_argument('--root', default='/home/besedin/workspace/Projects/Journal_paper/', help='path to dataset')
+parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
+parser.add_argument('--batch_size', type=int, default=100, help='input batch size')
+parser.add_argument('--image_size', type=int, default=28, help='the height / width of the input image to network')
+parser.add_argument('--niter', type=int, default=100, help='number of training epochs')
+parser.add_argument('--lr', type=float, default=0.001, help='learning rate, default=0.001')
+parser.add_argument('--betta1', type=float, default=0.02, help='trade-off coefficients for ae training')
+parser.add_argument('--betta2', type=float, default=1, help='trade-off coefficients for ae training')
+
+parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default = 0.5')
+parser.add_argument('--cuda', action='store_true', help='enables cuda')
+parser.add_argument('--cuda_device', type=int, default=0, help='Cuda device to use')
+parser.add_argument('--load_classifier', action='store_true', help='if enabled, load pretrained classifier with corresponding characteristics')
+parser.add_argument('--load_gen_model', action='store_true', help='if enabled, load pretrained generative model')
+
+parser.add_argument('--manual_seed', type=int, help='manual seed')
+parser.add_argument('--MNIST_classes', type=int, default=10, help='nb of classes from MNIST by default')
+parser.add_argument('--LSUN_classes', type=int, default=30, help='nb of classes from MNIST by default')
+parser.add_argument('--optimizer_classification', default='Adam', help='Adam | SGD')
+parser.add_argument('--optimizer_generator', default='Adam', help='Adam | SGD')
+#Synthetic data options
+parser.add_argument('--nb_of_classes', default=10, type=int, help='number of classes in synthetic dataset')
+parser.add_argument('--class_size', default=100, type=int, help='number of elements in each class')
+parser.add_argument('--feature_size', default=2048, type=int, help='feature size in synthetic dataset')
+parser.add_argument('--generate_data', action='store_true', help='generates a new dataset if enabled, loads predefined otherwise')
+parser.add_argument('--real_storage_size', default=300, type=int, help='size of the storage of real data per class')
+parser.add_argument('--fake_storage_size', default=2000, type=int, help='size of the storage of fake data per class')
+parser.add_argument('--stream_batch_size', default=2000, type=int, help='size of the batch we receive from stream')
+parser.add_argument('--max_class_duration', default=10, type=int, help='size of the batch we receive from stream')
+parser.add_argument('--fake_to_real_ratio', default=20, type=int, help='size of the batch we receive from stream')
+opts = parser.parse_args()
+opts.fake_storage_size = opts.stream_batch_size
+print('Loading data')
+if opts.cuda:
+  torch.cuda.set_device(opts.cuda_device)
+if opts.dataset=='MNIST':
+  opts.nb_of_classes=opts.MNIST_classes
+elif opts.dataset=='LSUN':
+  opts.nb_of_classes=opts.LSUN_classes
+  
+AE_specific = ''
+if opts.generator_type == 'AE':
+  AE_specific = '_' + str(opts.code_size) + '_trade-off_' + str(opts.betta1) + '_'
+name_to_save = opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth'
+  
+print(opts)
+if opts.manual_seed is None:
+  opts.manual_seed = random.randint(1, 10000)
+print("Random Seed: ", opts.manual_seed)
+random.seed(opts.manual_seed)
+torch.manual_seed(opts.manual_seed)
+
+if torch.cuda.is_available() and not opts.cuda:
+  print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+    
+print('Loading data')
+orig_trainset, orig_testset = sup_functions.load_dataset(opts)
+gen_model = sup_functions.init_generative_model(opts)
+
+classifier = sup_functions.init_classifier(opts)
+
+criterion = nn.CrossEntropyLoss(); 
+optimizer = optim.SGD(classifier.parameters(), lr=opts.lr, momentum=0.99)
+if opts.optimizer=='Adam':
+  optimizer = optim.Adam(classifier.parameters(), lr=opts.lr, betas=(opts.beta1, 0.999), weight_decay=1e-5)
+
+if opts.cuda:
+  gen_model = gen_model.cuda()
+  criterion = criterion.cuda()
+  classifier = classifier.cuda()
+  
+print('Reconstructing data')
+#trainset = sup_functions.reconstruct_dataset_with_AE(trainset, gen_model, bs = 1000, real_data_ratio=0)  
+testset = sup_functions.reconstruct_dataset_with_AE(orig_testset, gen_model, bs = 1000, real_data_ratio=0)
+  
+train_loader = data_utils.DataLoader(orig_trainset, batch_size=opts.batch_size, shuffle = True, drop_last = True)
+
+max_test_acc = 0
+accuracies = []
+Stream = True
+seen_classes = {}
+real_data_storage = torch.FloatTensor(opts.nb_of_classes, opts.real_storage_size, opts.feature_size)
+fake_data_storage = torch.FloatTensor(opts.nb_of_classes, opts.fake_storage_size, opts.feature_size)
+while Stream:
+  train_data = torch.FloatTensor(fake_size*opts.stream_batch_size, opts.feature_size)
+  train_labels = torch.FloatTensor(fake_size*opts.stream_batch_size)
+  train_data, train_labels = fill_from_storages(fake_data_storage, real_data_storage, seen_classes)
+  data_class = random.randint(0, opts.nb_of_classes)
+  seen_classes[str(data_class)] = True
+  # Initialize the training dataset for the interval
+  fake_size = min(len(seen_classes), opts.fake_to_real_ratio)
+
+  #-----------------------------------------------------------------------------------------------
+  indices_real = (orig_trainset.tensors[1].long()==data_class).nonzero().long()
+  real_data_loader = DataLoader(orig_trainset, batch_size=opts.stream_batch_size, sampler = SubsetRandomSampler(indices_real.squeeze()))
+  class_duration = random.randint(1, opts.max_class_duration)
+  received_batches = 0
+  
+  while received_batches < class_duration:
+    for idx, (real_batch, real_labels) in real_data_loader:
+      received_batches+=1
+      real_data_storage[data_class] = real_batch[-opts.real_storage_size:] #Storing a small portion of real data
+      fake_data_storage[data_class] = real_batch
+      # Preparing the buffer for the interval
+      
+      train_data[:opts.stream_batch_size], train_labels[:opts.stream_batch_size] = real_batch, real_labels
+      stream_trainset = TensorDataset(train_data, train_labels)
+      train_loader = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, shuffle = True)
+      # Time to train models
+      sup_functions.train_classifier(classifier, train_loader, optimizer_, criterion_)
+      sup_functions.train_gen_model(gen_model, classifier, train_loader, optimizer_gen, optimizer_classif, criterion_AE, criterion_classif, opts) 
+      if received_batches >= class_duration: break
+  for key in seen_classes.keys():
+    fake_data_storage[int(key)] = gen_model(fake_data_storage[int(key)])
+  # Testing phase in the end of the interval
+  testset = sup_functions.reconstruct_dataset_with_AE(orig_testset, gen_model, bs = 1000)
+  test_loader = data_utils.DataLoader(testset, batch_size=opts.batch_size, shuffle = False)
+  
+for t in range(opts.niter):  # loop over the dataset multiple times
+  print('Training epoch ' + str(epoch))
+  sup_functions.train_classifier(classifier, train_loader, optimizer, criterion)
+  accuracies.append(sup_functions.test_classifier(classifier, test_loader))
+  if accuracies[-1] > max_test_acc:
+    max_test_acc = accuracies[-1]
+    best_classifier = classifier
+    torch.save(best_classifier, opts.root+'pretrained_models/generalizability_classifier_' + name_to_save + '.pth')      
+  print('Test accuracy: ' + str(accuracies[-1]))
+
+  torch.save(accuracies, opts.root+'results/generalizability_accuracy_' + name_to_save + '.pth' )
+print('Finished Training')
