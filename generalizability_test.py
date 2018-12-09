@@ -68,7 +68,7 @@ if torch.cuda.is_available() and not opts.cuda:
     
 print('Loading data')
 trainset, testset = sup_functions.load_dataset(opts)
-gen_model = torch.load(opts.root + 'representativity_' + opts.dataset + '_AE_' + str(opts.code_size) +'_cl_loss_' + str(opts.betta1) + '_rec_loss_' + str(opts.betta2) + '_' + str(opts.nb_of_classes) + '_classes.pth')
+gen_model = torch.load(opts.root + 'pretrained_models/representativity_' + opts.dataset + '_AE_' + str(opts.code_size) +'_cl_loss_' + str(opts.betta1) + '_rec_loss_' + str(opts.betta2) + '_' + str(opts.nb_of_classes) + '_classes.pth')
 #gen_model = sup_functions.init_generative_model(opts)
 
 classifier = sup_functions.init_classifier(opts)
