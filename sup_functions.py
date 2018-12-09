@@ -219,16 +219,16 @@ def load_dataset(opts):
       transform=img_transform)
     test_dataset = TensorDatasetMNIST(testset.test_data.reshape(10000, 1, 28, 28), testset.test_labels, transform=img_transform)
   elif opts.dataset=='LSUN':
-    img_transform = transforms.Compose([
-      transforms.ToTensor(),
-      transforms.Normalize((0.46, 0.46, 0.46), (0.35, 0.35, 0.35))
-    ])
     tensor_train = torch.load(opts.root + 'datasets/LSUN/trainset.pth')
     tensor_test  = torch.load(opts.root + 'datasets/LSUN/testset.pth')
     #train_dataset = TensorDataset2048(tensor_train[0], tensor_train[1], transform=img_transform)
     #test_dataset = TensorDataset2048(tensor_test[0], tensor_test[1], transform=img_transform)
-    train_dataset = TensorDataset(tensor_train[0], tensor_train[1])
-    test_dataset = TensorDataset(tensor_test[0], tensor_test[1])
+    train_dataset = TensorDataset(tensor_train[0] - 0.46, tensor_train[1])
+    test_dataset = TensorDataset(tensor_test[0] - 0.46, tensor_test[1])
+    print('Trainset mean: ' + str(train_dataset.tensors[0].mean()))
+    print('Trainset std: ' + str(train_dataset.tensors[0].std()))
+    print('Testset mean: ' + str(test_dataset.tensors[0].mean()))
+    print('Testset std: ' + str(test_dataset.tensors[0].std()))
   elif opts.dataset=='Synthetic':
     full_data = False
     if not opts.generate_data:

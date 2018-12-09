@@ -41,8 +41,8 @@ class Classifier_2048_features(nn.Module):
 class autoencoder_2048(nn.Module):
   def __init__(self, code_size):
     def linear_block(in_, out_):
-      return nn.Sequential(nn.Linear(in_, out_), nn.ReLU(True))
-#      return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
+#      return nn.Sequential(nn.Linear(in_, out_), nn.ReLU(True))
+      return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
     super(autoencoder_2048, self).__init__()
     self.encoder = nn.Sequential(
       linear_block(2048, 1024),
@@ -58,7 +58,7 @@ class autoencoder_2048(nn.Module):
       linear_block(128, 512),
       linear_block(512, 1024),
       nn.Linear(1024, 2048),
-#      nn.Tanh()
+      nn.Tanh()
     )
   def forward(self, x):
     x = self.encoder(x)

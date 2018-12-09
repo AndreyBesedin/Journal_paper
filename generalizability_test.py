@@ -42,6 +42,8 @@ parser.add_argument('--generate_data', action='store_true', help='generates a ne
 
 opts = parser.parse_args()
 
+if opts.cuda:
+  torch.cuda.set_device(opts.cuda_device)
 print('Loading data')
 
 if opts.dataset=='MNIST':
