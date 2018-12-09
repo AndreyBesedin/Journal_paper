@@ -124,11 +124,7 @@ def reconstruct_dataset_with_AE(dataset, rec_model, bs = 100, real_data_ratio=0)
       #call('nvidia-smi')
     bar.next()
     inputs = train_x.float().cuda()
-    batch = {}
-    if idx < real_data_ratio:
-      batch = inputs
-    else:
-      batch = rec_model(inputs)
+    batch = rec_model(inputs)
     current_batch_size = batch.shape[0]
     res_data[current_index:current_index+current_batch_size] = batch.cpu().data
     res_labels[current_index:current_index+current_batch_size] = train_y
