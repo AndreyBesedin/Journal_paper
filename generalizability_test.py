@@ -21,7 +21,7 @@ parser.add_argument('--batch_size', type=int, default=100, help='input batch siz
 parser.add_argument('--image_size', type=int, default=28, help='the height / width of the input image to network')
 parser.add_argument('--niter', type=int, default=100, help='number of training epochs')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate, default=0.001')
-parser.add_argument('--betta1', type=float, default=0.02, help='trade-off coefficients for ae training')
+parser.add_argument('--betta1', type=float, default=0.2, help='trade-off coefficients for ae training')
 parser.add_argument('--betta2', type=float, default=1, help='trade-off coefficients for ae training')
 
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default = 0.5')
@@ -68,7 +68,8 @@ if torch.cuda.is_available() and not opts.cuda:
     
 print('Loading data')
 trainset, testset = sup_functions.load_dataset(opts)
-gen_model = sup_functions.init_generative_model(opts)
+gen_model = torch.load(opts.root + 'representativity_' + opts.dataset + '_AE_' + str(opts.code_size) +'_cl_loss_' + str(opts.betta1) + '_rec_loss_' + str(opts.betta2) + '_' + str(opts.nb_of_classes) + '_classes.pth')
+#gen_model = sup_functions.init_generative_model(opts)
 
 classifier = sup_functions.init_classifier(opts)
 
