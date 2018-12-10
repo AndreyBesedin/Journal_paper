@@ -144,6 +144,8 @@ def init_generative_model(opts):
   if opts.dataset == 'MNIST':
     if opts.generator_type == 'AE':
       gen_model = models.autoencoder_MNIST(int(opts.code_size))
+  elif opts.dataset == 'MNIST_features':
+    gen_model = models.autoencoder_MNIST_512_features(int(opts.code_size))
   else:
     if opts.generator_type == 'AE':
       gen_model = models.autoencoder_2048(int(opts.code_size))
@@ -160,6 +162,9 @@ def init_classifier(opts):
   if opts.dataset == 'MNIST':
     opts.nb_of_classes = opts.MNIST_classes
     classifier = models.Classifier_MNIST_28x28(opts.nb_of_classes)
+  elif opts.dataset == 'MNIST_features':
+    opts.nb_of_classes = opts.MNIST_classes
+    classifier = models.Classifier_MNIST_512_features(opts.nb_of_classes)    
   elif opts.dataset == 'LSUN':
     opts.nb_of_classes = opts.LSUN_classes
     classifier = models.Classifier_2048_features(opts.nb_of_classes)
@@ -224,8 +229,13 @@ def load_dataset(opts):
       download=True,
       transform=img_transform)
     test_dataset = TensorDatasetMNIST(testset.test_data.reshape(10000, 1, 28, 28), testset.test_labels, transform=img_transform)
+  elif opts.dataset=='MNIST_features':
+    tensor_train = torch.load(opts.root + 'datasets/MNIST/trainset.pth')
+    tensor_test  = torch.load(opts.root + 'datasets/MNIST/testset.pth')
+    train_dataset = TensorDataset(tensor_train[0], tensor_train[1])
+    test_dataset = TensorDataset(tensor_test[0], tensor_test[1])
   elif opts.dataset=='LSUN':
-    tensor_train = torch.load(opts.root + 'datasets/LSUN/testset.pth')
+    tensor_train = torch.load(opts.root + 'datasets/LSUN/trainset.pth')
     tensor_test  = torch.load(opts.root + 'datasets/LSUN/testset.pth')
     #train_dataset = TensorDataset2048(tensor_train[0], tensor_train[1], transform=img_transform)
     #test_dataset = TensorDataset2048(tensor_test[0], tensor_test[1], transform=img_transform)

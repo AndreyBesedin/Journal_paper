@@ -163,30 +163,39 @@ while Stream:
           labels = labels.cuda()
     # ===================forward=====================
         orig_classes = classifier(inputs)
-        orig_classes.require_grad=True
-        classification_loss = classification_criterion(orig_classes, labels.long())
+        #orig_classes.require_grad=True
+        #classification_loss = classification_criterion(orig_classes, labels.long())
         #if opts.betta1!=0:
         outputs = gen_model(inputs)
         orig_classes.require_grad=False
         classification_reconstructed = classifier(outputs)
         generative_loss_class = generative_criterion_classification(classification_reconstructed, orig_classes)
         #print('Paco 5')
-        total_loss = classification_loss + generative_loss_class
-        total_loss.backward(retain_graph=False)
+        generative_loss_class.backward()
         #print('Paco 6')
-        classification_optimizer.step()
+        #classification_optimizer.step()
         generative_optimizer_classification.step()
-        classification_optimizer.zero_grad()
+        #classification_optimizer.zero_grad()
         generative_optimizer_classification.zero_grad()
         #print('Paco 7')
         if idx%100==0:
-          print('epoch [{}/{}], classification loss: {:.4f}'
+          print('epoch [{}/{}], generative classification loss: {:.4f}'
             .format(epoch, opts.niter,  generative_loss_class.item()))
-          
+      for idx, (train_X, train_Y) in enumerate(train_loader):
+        orig_classes = classifier(inputs)
+        orig_classes.require_grad=True
+        classification_loss = classification_criterion(orig_classes, labels.long())
+        classification_loss.backward()
+        classification_optimizer.step()
+        classification_optimizer.zero_grad()
+        if idx%100==0:
+          print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, opts.niter,  classification_loss.item()))
       if received_batches >= class_duration: break
   # Reconstructing saved data with updated generator  
   for key in seen_classes.keys():
     fake_data_storage[int(key)] = gen_model(fake_data_storage[int(key)].data.cuda()).cpu().data
+  
+    
   # Testing phase in the end of the interval
   acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
   accuracies.append(acc)
