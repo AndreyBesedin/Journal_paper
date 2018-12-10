@@ -166,7 +166,7 @@ while Stream:
         classification_reconstructed = classifier(outputs)
         orig_classes.require_grad=True
         loss = classification_criterion(orig_classes, labels.long())
-        loss.backward()
+        loss.backward(retrain_graph=True)
         classification_optimizer.step()
         classification_optimizer.zero_grad()
         if opts.betta1!=0:
