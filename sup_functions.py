@@ -225,7 +225,7 @@ def load_dataset(opts):
       transform=img_transform)
     test_dataset = TensorDatasetMNIST(testset.test_data.reshape(10000, 1, 28, 28), testset.test_labels, transform=img_transform)
   elif opts.dataset=='LSUN':
-    tensor_train = torch.load(opts.root + 'datasets/LSUN/trainset.pth')
+    tensor_train = torch.load(opts.root + 'datasets/LSUN/testset.pth')
     tensor_test  = torch.load(opts.root + 'datasets/LSUN/testset.pth')
     #train_dataset = TensorDataset2048(tensor_train[0], tensor_train[1], transform=img_transform)
     #test_dataset = TensorDataset2048(tensor_test[0], tensor_test[1], transform=img_transform)

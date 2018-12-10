@@ -104,6 +104,7 @@ max_test_acc = 0
 accuracies = []
 stream_classes = []
 Stream = True
+epoch = 0
 seen_classes = {}
 real_data_storage = torch.FloatTensor(opts.nb_of_classes, opts.real_storage_size, opts.feature_size)
 fake_data_storage = torch.FloatTensor(opts.nb_of_classes, opts.fake_storage_size, opts.feature_size)
@@ -113,6 +114,7 @@ while Stream:
   The buffer size is k*(size of the stream batch), where k is equal to the number of already seen classes
   until it reaches some predefined constant K
   """
+  epoch+=1
   data_class = random.randint(0, opts.nb_of_classes) # randomly pick the streaming class
   seen_classes_prev = seen_classes.copy()
   seen_classes[str(data_class)] = True  # Add new class to seen classes or do nothing if already there
@@ -148,7 +150,7 @@ while Stream:
       stream_trainset = TensorDataset(train_data, train_labels)
       train_loader = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, shuffle = True)
       # Time to train models
-      sup_functions.train_classifier(classifier, train_loader, classification_optimizer, classification_criterion)
+      #sup_functions.train_classifier(classifier, train_loader, classification_optimizer, classification_criterion)
       
       # Generative model training
       #sup_functions.train_gen_model(gen_model, classifier, train_loader, generative_criterion_classification, generative_optimizer_classification,
@@ -160,37 +162,36 @@ while Stream:
           inputs = inputs.cuda()
           labels = labels.cuda()
     # ===================forward=====================
-        classification_optimizer.zero_grad()
-        outputs = gen_model(inputs)
         orig_classes = classifier(inputs)
-        classification_reconstructed = classifier(outputs)
         orig_classes.require_grad=True
-        loss = classification_criterion(orig_classes, labels.long())
-        loss.backward(retrain_graph=True)
+        classification_loss = classification_criterion(orig_classes, labels.long())
+        #if opts.betta1!=0:
+        outputs = gen_model(inputs)
+        orig_classes.require_grad=False
+        classification_reconstructed = classifier(outputs)
+        generative_loss_class = generative_criterion_classification(classification_reconstructed, orig_classes)
+        total_loss = classification_loss + generative_loss_class
+        total_loss.backward(retain_graph=True)
         classification_optimizer.step()
+        generative_optimizer_classification.step()
         classification_optimizer.zero_grad()
-        if opts.betta1!=0:
-          orig_classes.require_grad=False
-          loss_classif = generative_criterion_classification(classification_reconstructed, orig_classes)
-          loss_classif.backward()
-          generative_optimizer_classification.step()
-          generative_optimizer_classification.zero_grad()
-        if opts.betta2!=0:
-          loss_AE = generative_criterion_reconstruction(outputs, inputs)
-          loss_AE.backward()
-          generative_optimizer_reconstruction.step()
-          generative_optimizer_reconstruction.zero_grad()
+        generative_optimizer_classification.zero_grad()
+        #if opts.betta2!=0:
+        #  loss_AE = generative_criterion_reconstruction(outputs, inputs)
+        #  loss_AE.backward()
+        #  generative_optimizer_reconstruction.step()
+        #  generative_optimizer_reconstruction.zero_grad()
     
         if idx%100==0:
-          if opts.betta1==0:
-            print('epoch [{}/{}], AE loss: {:.4f}'
-              .format(opts.epoch+1, opts.niter,  loss_AE.item()))
-          elif int(opts.betta2)==0:
+          #if opts.betta1==0:
+          #  print('epoch [{}/{}], AE loss: {:.4f}'
+          #    .format(epoch+1, opts.niter,  loss_AE.item()))
+          if int(opts.betta2)==0:
             print('epoch [{}/{}], classification loss: {:.4f}'
-              .format(opts.epoch+1, opts.niter,  loss_classif.item()))
-          else:
-            print('epoch [{}/{}], classification loss: {:.4f}, AE loss: {:.4f}'
-              .format(opts.epoch+1, opts.niter, loss_classif.item(), loss_AE.item()))
+              .format(epoch+1, opts.niter,  generative_loss_class.item()))
+          #else:
+          #  print('epoch [{}/{}], classification loss: {:.4f}, AE loss: {:.4f}'
+          #    .format(epoch+1, opts.niter, loss_classif.item(), loss_AE.item()))
       
       if received_batches >= class_duration: break
   # Reconstructing saved data with updated generator  
