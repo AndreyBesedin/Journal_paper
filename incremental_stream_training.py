@@ -45,7 +45,7 @@ parser.add_argument('--real_storage_size', default=300, type=int, help='size of 
 parser.add_argument('--fake_storage_size', default=2000, type=int, help='size of the storage of fake data per class')
 parser.add_argument('--stream_batch_size', default=2000, type=int, help='size of the batch we receive from stream')
 parser.add_argument('--max_class_duration', default=10, type=int, help='size of the batch we receive from stream')
-parser.add_argument('--fake_to_real_ratio', default=20, type=int, help='size of the batch we receive from stream')
+parser.add_argument('--fake_to_real_ratio', default=40, type=int, help='size of the batch we receive from stream')
 opts = parser.parse_args()
 opts.fake_storage_size = opts.stream_batch_size
 print('Loading data')
@@ -76,7 +76,9 @@ orig_trainset, orig_testset = sup_functions.load_dataset(opts)
 
 gen_model = sup_functions.init_generative_model(opts)
 generative_optimizer_reconstruction = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta2, betas=(0.9, 0.999), weight_decay=1e-5)
-
+generative_optimizer_classification = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta2, betas=(0.9, 0.999), weight_decay=1e-5)
+generative_criterion_reconstruction = nn.MSELoss()
+generative_criterion_classification = nn.MSELoss()
 
 classifier = sup_functions.init_classifier(opts)
 classification_optimizer = optim.Adam(classifier.parameters(), lr=opts.lr, betas=(opts.beta1, 0.999), weight_decay=1e-5)
@@ -84,13 +86,14 @@ classification_criterion = nn.CrossEntropyLoss()
 
 if opts.cuda:
   gen_model = gen_model.cuda()
-  criterion = criterion.cuda()
+  generative_criterion_reconstruction = generative_criterion_reconstruction.cuda()
+  generative_criterion_classification = generative_criterion_classification.cuda()
   classifier = classifier.cuda()
+  classification_criterion = classification_criterion.cuda()
   
 print('Reconstructing data')
 #trainset = sup_functions.reconstruct_dataset_with_AE(trainset, gen_model, bs = 1000, real_data_ratio=0)  
-testset = sup_functions.reconstruct_dataset_with_AE(orig_testset, gen_model, bs = 1000, real_data_ratio=0)
-test_loader = data_utils.DataLoader(testset, batch_size=opts.batch_size, shuffle = False)  
+test_loader = data_utils.DataLoader(orig_testset, batch_size=opts.batch_size, shuffle = False)  
 train_loader = data_utils.DataLoader(orig_trainset, batch_size=opts.batch_size, shuffle = True, drop_last = True)
 
 max_test_acc = 0
@@ -116,7 +119,8 @@ while Stream:
   train_data = torch.FloatTensor(fake_size*opts.stream_batch_size, opts.feature_size)
   train_labels = torch.FloatTensor(fake_size*opts.stream_batch_size)
   #TODO fill_from_storages randomly fill the training dataset with reconstructed historical data from storages
-  train_data, train_labels = fill_from_storages(train_data, train_labels, fake_data_storage, real_data_storage, seen_classes_prev)
+  
+  #train_data, train_labels = fill_from_storages(train_data, train_labels, fake_data_storage, real_data_storage, seen_classes_prev)
 
   #-----------------------------------------------------------------------------------------------
   # Inititalize the loader for corresponding class
@@ -129,32 +133,37 @@ while Stream:
     for idx, (real_batch, real_labels) in real_data_loader:
       stream_classes.append(data_class)
       received_batches+=1
+      fake_data_storage[data_class] = real_batch
       real_data_storage[data_class] = real_batch[-opts.real_storage_size:] #Storing a small portion of real data
       # Preparing the buffer for the interval
-      
-      train_data[:opts.stream_batch_size], train_labels[:opts.stream_batch_size] = real_batch, real_labels
+      for idx_key, key in enumerate(seen_classes.keys()):
+        train_data[idx_key*opts.stream_batch_size:(idx_key + 1)*opts.stream_batch_size] = fake_data_storage[int(key)]
+        train_data[(idx_key+1)*opts.stream_batch_size-opts.real_storage_size:(idx_key+1)*opts.stream_batch_size] = real_data_storage[int(key)]
+        train_labels[idx_key*opts.stream_batch_size:(idx_key+1)*opts.stream_batch_size] = int(key)
+        
       stream_trainset = TensorDataset(train_data, train_labels)
       train_loader = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, shuffle = True)
       # Time to train models
       sup_functions.train_classifier(classifier, train_loader, classification_optimizer, classification_criterion)
-      sup_functions.train_gen_model(gen_model, classifier, train_loader, optimizer_gen, optimizer_classif, criterion_AE, criterion_classif, opts) 
+      sup_functions.train_gen_model(gen_model, classifier, train_loader, generative_criterion_classification, generative_optimizer_classification, generative_criterion_reconstruction, generative_optimizer_reconstruction,opts) 
       if received_batches >= class_duration: break
+  # Reconstructing saved data with updated generator  
   for key in seen_classes.keys():
     fake_data_storage[int(key)] = gen_model(fake_data_storage[int(key)])
   # Testing phase in the end of the interval
   acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
   accuracies.append(acc)
-  
-  
-for t in range(opts.niter):  # loop over the dataset multiple times
-  print('Training epoch ' + str(epoch))
-  sup_functions.train_classifier(classifier, train_loader, optimizer, criterion)
-  accuracies.append(sup_functions.test_classifier(classifier, test_loader))
-  if accuracies[-1] > max_test_acc:
-    max_test_acc = accuracies[-1]
-    best_classifier = classifier
-    torch.save(best_classifier, opts.root+'pretrained_models/generalizability_classifier_' + name_to_save + '.pth')      
   print('Test accuracy: ' + str(accuracies[-1]))
+  
+#for t in range(opts.niter):  # loop over the dataset multiple times
+  #print('Training epoch ' + str(epoch))
+  #sup_functions.train_classifier(classifier, train_loader, optimizer, criterion)
+  #accuracies.append(sup_functions.test_classifier(classifier, test_loader))
+  #if accuracies[-1] > max_test_acc:
+    #max_test_acc = accuracies[-1]
+    #best_classifier = classifier
+    #torch.save(best_classifier, opts.root+'pretrained_models/generalizability_classifier_' + name_to_save + '.pth')      
+  #print('Test accuracy: ' + str(accuracies[-1]))
 
-  torch.save(accuracies, opts.root+'results/generalizability_accuracy_' + name_to_save + '.pth' )
-print('Finished Training')
+  #torch.save(accuracies, opts.root+'results/generalizability_accuracy_' + name_to_save + '.pth' )
+#print('Finished Training')

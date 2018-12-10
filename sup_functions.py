@@ -38,41 +38,46 @@ def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
       print('Iteration: %5d loss: %.3f' % (idx + 1, running_loss / 100))
       running_loss = 0.0
     
-def train_gen_model(gen_model, classifier, train_loader, opts):
-  optimizer_gen = torch.optim.Adam(gen_model.parameters(), lr=opts.lr, betas=(0.9, 0.999), weight_decay=1e-5)
-  criterion_AE = nn.MSELoss()
-  criterion_classif = nn.MSELoss()
-  criterion_AE = criterion_AE.cuda()
-  criterion_classif = criterion_classif.cuda()
-  optimizer_gen.zero_grad()
-  #optimizer_classif.zero_grad()
+def train_gen_model(gen_model, classifier, train_loader, criterion_classif, optimizer_classif, criterion_AE, optimizer_gen, opts):
   for idx, (train_X, train_Y) in enumerate(train_loader):
     inputs = train_X.float()
-    inputs = Variable(inputs).cuda()
-    labels = train_Y.float().cuda()
-    
+    labels = train_Y
+    if opts.cuda:
+      inputs = inputs.cuda()
+      labels = labels.cuda()
     #if opts.cuda:
       #inputs = inputs.cuda()
       #labels = inputs.cuda()
     # ===================forward=====================
-    #outputs = gen_model(inputs)
-    #orig_classes = classifier(inputs)
-    #classification_reconstructed = classifier(outputs)
-    #loss_classif = criterion_classif(classification_reconstructed, orig_classes)
-    #loss_classif.backward()
-    #optimizer_classif.step()
-    #optimizer_classif.zero_grad()
-    loss_classif = 0
-    outputs = gen_model(inputs)
-    loss_AE = criterion_AE(outputs, inputs)
-    # ===================backward====================
-    loss_AE.backward()
-    optimizer_gen.step()
-    optimizer_gen.zero_grad()
+    
+    if opts.betta1!=0:
+      outputs = gen_model(inputs)
+      orig_classes = classifier(inputs)
+      orig_classes.require_grad=False
+      classification_reconstructed = classifier(outputs)
+      loss_classif = criterion_classif(classification_reconstructed, orig_classes)
+      loss_classif.backward()
+      optimizer_classif.step()
+      optimizer_classif.zero_grad()
+    if opts.betta2!=0:
+      outputs = gen_model(inputs)
+      loss_AE = criterion_AE(outputs, inputs)
+      loss_AE.backward()
+      optimizer_gen.step()
+      optimizer_gen.zero_grad()
+    
     if idx%100==0:
-      print('epoch [{}/{}], classification loss: {:.4f}, AE loss: {:.4f}'
-          .format(opts.epoch+1, opts.niter, loss_classif, loss_AE.item()))
-  return gen_model
+      if opts.betta1==0:
+        print('AE loss: {:.4f}'
+          .format(loss_AE.item()))
+      elif int(opts.betta2)==0:
+        print('classification loss: {:.4f}'
+          .format(loss_classif.item()))
+      else:
+        print('classification loss: {:.4f}, AE loss: {:.4f}'
+          .format(loss_classif.item(), loss_AE.item()))
+    # ===================backward====================
+  return 0
       
 def test_classifier(classif_, data_loader_):
   total = 0
