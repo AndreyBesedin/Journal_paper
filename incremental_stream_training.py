@@ -169,15 +169,15 @@ while Stream:
         orig_classes.require_grad=False
         classification_reconstructed = classifier(outputs)
         generative_loss_class = generative_criterion_classification(classification_reconstructed, orig_classes)
-        print('Paco 5')
+        #print('Paco 5')
         total_loss = classification_loss + generative_loss_class
         total_loss.backward(retain_graph=False)
-        print('Paco 6')
+        #print('Paco 6')
         classification_optimizer.step()
         generative_optimizer_classification.step()
         classification_optimizer.zero_grad()
         generative_optimizer_classification.zero_grad()
-        print('Paco 7')
+        #print('Paco 7')
         if idx%100==0:
           print('epoch [{}/{}], classification loss: {:.4f}'
             .format(epoch, opts.niter,  generative_loss_class.item()))
@@ -189,7 +189,7 @@ while Stream:
   # Testing phase in the end of the interval
   #acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
   #accuracies.append(acc)
-  print('Test accuracy: ' + str(accuracies[-1]))
+  #print('Test accuracy: ' + str(accuracies[-1]))
   
 #for t in range(opts.niter):  # loop over the dataset multiple times
   #print('Training epoch ' + str(epoch))
