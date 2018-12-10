@@ -46,7 +46,7 @@ if opts.cuda:
   torch.cuda.set_device(opts.cuda_device)
 print('Loading data')
 
-if opts.dataset=='MNIST':
+if opts.dataset=='MNIST' or opts.dataset=='MNIST_features':
   opts.nb_of_classes=opts.MNIST_classes
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes

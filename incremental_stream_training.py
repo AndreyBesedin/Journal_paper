@@ -181,15 +181,16 @@ while Stream:
         if idx%100==0:
           print('epoch [{}/{}], generative classification loss: {:.4f}'
             .format(epoch, opts.niter,  generative_loss_class.item()))
-      for idx, (train_X, train_Y) in enumerate(train_loader):
-        orig_classes = classifier(inputs)
-        orig_classes.require_grad=True
-        classification_loss = classification_criterion(orig_classes, labels.long())
-        classification_loss.backward()
-        classification_optimizer.step()
-        classification_optimizer.zero_grad()
-        if idx%100==0:
-          print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, opts.niter,  classification_loss.item()))
+      for idx_classifier in range(10):
+        for idx, (train_X, train_Y) in enumerate(train_loader):
+          orig_classes = classifier(inputs)
+          orig_classes.require_grad=True
+          classification_loss = classification_criterion(orig_classes, labels.long())
+          classification_loss.backward()
+          classification_optimizer.step()
+          classification_optimizer.zero_grad()
+          if idx%100==0:
+            print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, opts.niter,  classification_loss.item()))
       if received_batches >= class_duration: break
   # Reconstructing saved data with updated generator  
   for key in seen_classes.keys():

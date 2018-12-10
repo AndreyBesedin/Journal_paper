@@ -11,7 +11,7 @@ import sup_functions
 import models
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', required=True, help='MNIST | LSUN | Synthetic')
+parser.add_argument('--dataset', required=True, help='MNIST | MNIST_features| LSUN | Synthetic')
 parser.add_argument('--generator_type', default='AE', help='AE | CGAN | ACGAN')
 parser.add_argument('--code_size', default='32', help='Size of the code representation in autoencoder')
 parser.add_argument('--root', default='/home/besedin/workspace/Projects/Journal_paper/', help='path to dataset')
@@ -41,7 +41,7 @@ parser.add_argument('--generate_data', action='store_true', help='generates a ne
 
 
 opts = parser.parse_args()
-if opts.dataset=='MNIST':
+if opts.dataset=='MNIST' or opts.dataset=='MNIST_features':
   opts.nb_of_classes=opts.MNIST_classes
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes

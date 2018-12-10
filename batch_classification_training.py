@@ -54,7 +54,7 @@ if torch.cuda.is_available() and not opts.cuda:
   print("WARNING: You have a CUDA device, so you should probably run with --cuda")
     
 print('Loading data')
-if opts.dataset=='MNIST':
+if opts.dataset=='MNIST' or opts.dataset=='MNIST_features':
   opts.nb_of_classes=opts.MNIST_classes
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes
