@@ -53,7 +53,8 @@ elif opts.dataset=='LSUN':
   
 AE_specific = ''
 if opts.generator_type == 'AE':
-  AE_specific = '_' + str(opts.code_size) + '_trade-off_' + str(opts.betta1) + '_'
+#  AE_specific = '_' + str(opts.code_size) + '_trade-off_' + str(opts.betta1) + '_'
+  AE_specific = '_' + str(opts.code_size) +'_cl_loss_' + str(opts.betta1) + '_rec_loss_' + str(opts.betta2) + '_'
 name_to_save = opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth'
   
 print(opts)
@@ -68,7 +69,7 @@ if torch.cuda.is_available() and not opts.cuda:
     
 print('Loading data')
 trainset, testset = sup_functions.load_dataset(opts)
-gen_model = torch.load(opts.root + 'pretrained_models/representativity_' + opts.dataset + '_AE_' + str(opts.code_size) +'_cl_loss_' + str(opts.betta1) + '_rec_loss_' + str(opts.betta2) + '_' + str(opts.nb_of_classes) + '_classes.pth')
+gen_model = torch.load(opts.root + 'pretrained_models/representativity_' + opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth')
 #gen_model = sup_functions.init_generative_model(opts)
 
 classifier = sup_functions.init_classifier(opts)
@@ -102,8 +103,8 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
   if accuracies[-1] > max_test_acc:
     max_test_acc = accuracies[-1]
     best_classifier = classifier
-    torch.save(best_classifier, opts.root+'pretrained_models/generalizability_classifier_' + name_to_save + '.pth')      
+    torch.save(best_classifier, opts.root+'pretrained_models/generalizability_classifier_' + name_to_save)      
   print('Test accuracy: ' + str(accuracies[-1]))
 
-  torch.save(accuracies, opts.root+'results/generalizability_accuracy_' + name_to_save + '.pth' )
+  torch.save(accuracies, opts.root+'results/generalizability_accuracy_' + name_to_save)
 print('Finished Training')

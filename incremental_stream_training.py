@@ -7,6 +7,11 @@ import torch.optim as optim
 import torch.utils.data as data_utils
 from torch.utils.data.sampler import SubsetRandomSampler
 
+from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+
 import synthetic_data_generation
 import sup_functions
 import models
@@ -130,7 +135,7 @@ while Stream:
   
   received_batches = 0
   while received_batches < class_duration:
-    for idx, (real_batch, real_labels) in real_data_loader:
+    for idx, (real_batch, real_labels) in enumerate(real_data_loader):
       stream_classes.append(data_class)
       received_batches+=1
       fake_data_storage[data_class] = real_batch
@@ -149,7 +154,7 @@ while Stream:
       if received_batches >= class_duration: break
   # Reconstructing saved data with updated generator  
   for key in seen_classes.keys():
-    fake_data_storage[int(key)] = gen_model(fake_data_storage[int(key)])
+    fake_data_storage[int(key)] = gen_model(fake_data_storage[int(key)].cuda()).cpu()
   # Testing phase in the end of the interval
   acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
   accuracies.append(acc)
