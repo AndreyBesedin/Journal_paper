@@ -81,7 +81,7 @@ orig_trainset, orig_testset = sup_functions.load_dataset(opts)
 
 gen_model = sup_functions.init_generative_model(opts)
 generative_optimizer_reconstruction = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta2, betas=(0.9, 0.999), weight_decay=1e-5)
-generative_optimizer_classification = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta2, betas=(0.9, 0.999), weight_decay=1e-5)
+generative_optimizer_classification = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta1, betas=(0.9, 0.999), weight_decay=1e-5)
 generative_criterion_reconstruction = nn.MSELoss()
 generative_criterion_classification = nn.MSELoss()
 
@@ -115,7 +115,7 @@ while Stream:
   until it reaches some predefined constant K
   """
   epoch+=1
-  data_class = random.randint(0, opts.nb_of_classes) # randomly pick the streaming class
+  data_class = random.randint(0, opts.nb_of_classes-1) # randomly pick the streaming class
   seen_classes_prev = seen_classes.copy()
   seen_classes[str(data_class)] = True  # Add new class to seen classes or do nothing if already there
   
@@ -124,7 +124,6 @@ while Stream:
   
   train_data = torch.FloatTensor(fake_size*opts.stream_batch_size, opts.feature_size)
   train_labels = torch.FloatTensor(fake_size*opts.stream_batch_size)
-  #TODO fill_from_storages randomly fill the training dataset with reconstructed historical data from storages
   
   #train_data, train_labels = fill_from_storages(train_data, train_labels, fake_data_storage, real_data_storage, seen_classes_prev)
 
@@ -136,7 +135,7 @@ while Stream:
   
   received_batches = 0
   while received_batches < class_duration:
-    for idx, (real_batch, real_labels) in enumerate(real_data_loader):
+    for idx_stream, (real_batch, real_labels) in enumerate(real_data_loader):
       stream_classes.append(data_class)
       received_batches+=1
       fake_data_storage[data_class] = real_batch
@@ -170,36 +169,26 @@ while Stream:
         orig_classes.require_grad=False
         classification_reconstructed = classifier(outputs)
         generative_loss_class = generative_criterion_classification(classification_reconstructed, orig_classes)
+        print('Paco 5')
         total_loss = classification_loss + generative_loss_class
-        total_loss.backward(retain_graph=True)
+        total_loss.backward(retain_graph=False)
+        print('Paco 6')
         classification_optimizer.step()
         generative_optimizer_classification.step()
         classification_optimizer.zero_grad()
         generative_optimizer_classification.zero_grad()
-        #if opts.betta2!=0:
-        #  loss_AE = generative_criterion_reconstruction(outputs, inputs)
-        #  loss_AE.backward()
-        #  generative_optimizer_reconstruction.step()
-        #  generative_optimizer_reconstruction.zero_grad()
-    
+        print('Paco 7')
         if idx%100==0:
-          #if opts.betta1==0:
-          #  print('epoch [{}/{}], AE loss: {:.4f}'
-          #    .format(epoch+1, opts.niter,  loss_AE.item()))
-          if int(opts.betta2)==0:
-            print('epoch [{}/{}], classification loss: {:.4f}'
-              .format(epoch+1, opts.niter,  generative_loss_class.item()))
-          #else:
-          #  print('epoch [{}/{}], classification loss: {:.4f}, AE loss: {:.4f}'
-          #    .format(epoch+1, opts.niter, loss_classif.item(), loss_AE.item()))
-      
+          print('epoch [{}/{}], classification loss: {:.4f}'
+            .format(epoch, opts.niter,  generative_loss_class.item()))
+          
       if received_batches >= class_duration: break
   # Reconstructing saved data with updated generator  
   for key in seen_classes.keys():
-    fake_data_storage[int(key)] = gen_model(fake_data_storage[int(key)].cuda()).cpu()
+    fake_data_storage[int(key)] = gen_model(fake_data_storage[int(key)].data.cuda()).cpu().data
   # Testing phase in the end of the interval
-  acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
-  accuracies.append(acc)
+  #acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
+  #accuracies.append(acc)
   print('Test accuracy: ' + str(accuracies[-1]))
   
 #for t in range(opts.niter):  # loop over the dataset multiple times
