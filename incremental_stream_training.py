@@ -99,7 +99,6 @@ if opts.cuda:
 print('Reconstructing data')
 #trainset = sup_functions.reconstruct_dataset_with_AE(trainset, gen_model, bs = 1000, real_data_ratio=0)  
 test_loader = data_utils.DataLoader(orig_testset, batch_size=opts.batch_size, shuffle = False)  
-train_loader = data_utils.DataLoader(orig_trainset, batch_size=opts.batch_size, shuffle = True, drop_last = True)
 
 max_test_acc = 0
 accuracies = []
@@ -150,7 +149,49 @@ while Stream:
       train_loader = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, shuffle = True)
       # Time to train models
       sup_functions.train_classifier(classifier, train_loader, classification_optimizer, classification_criterion)
-      sup_functions.train_gen_model(gen_model, classifier, train_loader, generative_criterion_classification, generative_optimizer_classification, generative_criterion_reconstruction, generative_optimizer_reconstruction,opts) 
+      
+      # Generative model training
+      #sup_functions.train_gen_model(gen_model, classifier, train_loader, generative_criterion_classification, generative_optimizer_classification,
+ #generative_criterion_reconstruction, generative_optimizer_reconstruction,opts) 
+      for idx, (train_X, train_Y) in enumerate(train_loader):
+        inputs = train_X.float()
+        labels = train_Y
+        if opts.cuda:
+          inputs = inputs.cuda()
+          labels = labels.cuda()
+    # ===================forward=====================
+        classification_optimizer.zero_grad()
+        outputs = gen_model(inputs)
+        orig_classes = classifier(inputs)
+        classification_reconstructed = classifier(outputs)
+        orig_classes.require_grad=True
+        loss = classification_criterion(orig_classes, labels.long())
+        loss.backward()
+        classification_optimizer.step()
+        classification_optimizer.zero_grad()
+        if opts.betta1!=0:
+          orig_classes.require_grad=False
+          loss_classif = generative_criterion_classification(classification_reconstructed, orig_classes)
+          loss_classif.backward()
+          generative_optimizer_classification.step()
+          generative_optimizer_classification.zero_grad()
+        if opts.betta2!=0:
+          loss_AE = generative_criterion_reconstruction(outputs, inputs)
+          loss_AE.backward()
+          generative_optimizer_reconstruction.step()
+          generative_optimizer_reconstruction.zero_grad()
+    
+        if idx%100==0:
+          if opts.betta1==0:
+            print('epoch [{}/{}], AE loss: {:.4f}'
+              .format(opts.epoch+1, opts.niter,  loss_AE.item()))
+          elif int(opts.betta2)==0:
+            print('epoch [{}/{}], classification loss: {:.4f}'
+              .format(opts.epoch+1, opts.niter,  loss_classif.item()))
+          else:
+            print('epoch [{}/{}], classification loss: {:.4f}, AE loss: {:.4f}'
+              .format(opts.epoch+1, opts.niter, loss_classif.item(), loss_AE.item()))
+      
       if received_batches >= class_duration: break
   # Reconstructing saved data with updated generator  
   for key in seen_classes.keys():
