@@ -118,7 +118,8 @@ while Stream:
   data_class = random.randint(0, opts.nb_of_classes-1) # randomly pick the streaming class
   seen_classes_prev = seen_classes.copy()
   seen_classes[str(data_class)] = True  # Add new class to seen classes or do nothing if already there
-  
+  print('Epoch nb: ' + str(epoch) + '; already seen classes:')
+  print(seen_classes)
   # Initialize the training dataset for the interval
   fake_size = min(len(seen_classes), opts.fake_to_real_ratio) 
   
@@ -187,9 +188,9 @@ while Stream:
   for key in seen_classes.keys():
     fake_data_storage[int(key)] = gen_model(fake_data_storage[int(key)].data.cuda()).cpu().data
   # Testing phase in the end of the interval
-  #acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
-  #accuracies.append(acc)
-  #print('Test accuracy: ' + str(accuracies[-1]))
+  acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
+  accuracies.append(acc)
+  print('Test accuracy: ' + str(accuracies[-1]))
   
 #for t in range(opts.niter):  # loop over the dataset multiple times
   #print('Training epoch ' + str(epoch))
