@@ -49,7 +49,8 @@ def train_gen_model(gen_model, classifier, train_loader, criterion_classif, opti
       #inputs = inputs.cuda()
       #labels = inputs.cuda()
     # ===================forward=====================
-    
+    optimizer_classif.zero_grad()
+    optimizer_gen.zero_grad()
     if opts.betta1!=0:
       outputs = gen_model(inputs)
       orig_classes = classifier(inputs)
