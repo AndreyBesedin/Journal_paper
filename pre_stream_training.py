@@ -99,38 +99,52 @@ if opts.cuda:
   classification_criterion = classification_criterion.cuda()
 
 #print('Classification accuracy on the original testset: ' + str(sup_functions.test_classifier(classifier, test_loader)))
+
+accuracies = {}
+best_models = {}
+accuracies['original_classification'] = []
+print('Training the classifier')
+
 max_test_acc = 0
-accuracies = []
-accuracies_gen = []
-#TODO add score computation as in the paper
-for epoch in range(opts.niter):  # loop over the dataset multiple times
-  opts.epoch = epoch
+for epoch in range(opts.niter_classification):  # loop over the dataset multiple times
   print('Training epoch ' + str(epoch))
   r=torch.randperm(indices_train.shape[0])
   indices_train_new=indices_train[r[:, None]].squeeze()
 #  bar = Bar('Training: ', max=int(opts['nb_classes']*opts['samples_per_class_train']/opts['batch_size']))
-  print('Training the classifier')
-  train_loader_gen = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
-  if epoch>=25:
-    stream_trainset = sup_functions.reconstruct_dataset_with_AE(trainset, gen_model, opts.batch_size)
-    train_loader_classif = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
-  else:
-    train_loader_classif = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
+  train_loader_classif = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
   classification_optimizer.zero_grad()
   generative_optimizer_classification.zero_grad()
   for idx, (train_X, train_Y) in enumerate(train_loader_classif):
     inputs = train_X.float().squeeze().cuda()
     labels = train_Y.cuda()
-    cl_out = classifier(inputs)
-    classification_loss = classification_criterion(cl_out, labels.long())
+    orig_classes = classifier(inputs)
+    orig_classes.require_grad = True
+    classification_loss = classification_criterion(orig_classes, labels.long())
     classification_loss.backward()
     classification_optimizer.step()
     classification_optimizer.zero_grad()
     if idx%100==0:
-      print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, opts.niter,  classification_loss.item()))
-      
-  print('Training generative model')
+      print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, opts.niter_classification,  classification_loss.item()))
+  acc = sup_functions.test_classifier(classifier, test_loader)
+  print('Test accuracy, original classification training: ' + str(acc))
+  accuracies['original_classification'].append(acc)
+  torch.save(accuracies, opts.root+'results/pre_stream_training_accuracy_' + name_to_save)
+  if acc > max_test_acc:
+    max_test_acc = acc
+    best_models['original_classifier'] = classifier
+    torch.save(best_models, opts.root + 'pretrained_models/pre_stream_training_' + name_to_save)
   
+
+#TODO add score computation as in the paper
+print('Training generative model')
+max_test_acc = 0
+accuracies['generative_model_progress'] = []
+classifier = best_models['original_classifier']
+for epoch in range(opts.niter_generation):  # loop over the dataset multiple times
+  print('Training epoch ' + str(epoch))
+  r=torch.randperm(indices_train.shape[0])
+  indices_train_new=indices_train[r[:, None]].squeeze()
+  train_loader_gen = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
   generative_optimizer_classification.zero_grad()
   classification_optimizer.zero_grad()
   for idx, (train_X, train_Y) in enumerate(train_loader_gen):
@@ -143,35 +157,63 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
       #inputs = inputs.cuda()
       #labels = inputs.cuda()
     # ===================forward=====================
-    
     outputs = gen_model(inputs)
     orig_classes = classifier(inputs)
-    #orig_classes.require_grad=False
+    orig_classes.require_grad=False
     classification_reconstructed = classifier(outputs)
     loss_gen = generative_criterion_classification(classification_reconstructed, orig_classes)
     loss_gen.backward()
     generative_optimizer_classification.step()
     generative_optimizer_classification.zero_grad()
-        
     if idx%100==0:
       print('epoch [{}/{}], generators loss: {:.4f}'
-        .format(opts.epoch+1, opts.niter,  loss_gen.item()))
+        .format(epoch+1, opts.niter,  loss_gen.item()))
 
     # ===================backward====================
     
   gen_model.eval()
-  acc = sup_functions.test_classifier(classifier, test_loader)
-  acc_gen = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
+  acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
+  print('Test accuracy on reconstructed: ' + str(acc))
   gen_model.train()
-  accuracies.append(acc)
-  accuracies_gen.append(acc_gen)
-  if accuracies_gen[-1] > max_test_acc:
-    max_test_acc = accuracies_gen[-1]
-    best_gen_model = gen_model
-    torch.save(best_gen_model,opts.root + 'pretrained_models/pre_stream_training_' + name_to_save)
-      
-  print('Test accuracy: ' + str(accuracies[-1]))
-  print('Test accuracy on reconstructed: ' + str(accuracies_gen[-1]))
+  accuracies['generative_model_progress'].append(acc)
   torch.save(accuracies, opts.root+'results/pre_stream_training_accuracy_' + name_to_save)
-  torch.save(accuracies_gen, opts.root+'results/pre_stream_training_accuracy_on_reconstructed_' + name_to_save)
+  if acc > max_test_acc:
+    max_test_acc = acc
+    best_models['generative_model'] = gen_model
+    torch.save(best_models, opts.root + 'pretrained_models/pre_stream_training_' + name_to_save)
+      
+accuracies['classification_on_reconstructed'] = []
+print('Retraining the classifier')
+
+new_classifier = sup_functions.init_classifier(opts)
+classification_optimizer = optim.Adam(new_classifier.parameters(), lr=opts.lr, betas=(opts.beta1, 0.999), weight_decay=1e-5)
+max_test_acc = 0
+for epoch in range(opts.niter_classification):  # loop over the dataset multiple times
+  print('Training epoch ' + str(epoch))
+  r=torch.randperm(indices_train.shape[0])
+  indices_train_new=indices_train[r[:, None]].squeeze()
+#  bar = Bar('Training: ', max=int(opts['nb_classes']*opts['samples_per_class_train']/opts['batch_size']))
+  train_loader_classif = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
+  classification_optimizer.zero_grad()
+  generative_optimizer_classification.zero_grad()
+  for idx, (train_X, train_Y) in enumerate(train_loader_classif):
+    inputs = gen_model(train_X.float().cuda())
+    labels = train_Y.cuda()
+    orig_classes = new_classifier(inputs)
+    orig_classes.require_grad = True
+    classification_loss = classification_criterion(orig_classes, labels.long())
+    classification_loss.backward()
+    classification_optimizer.step()
+    classification_optimizer.zero_grad()
+    if idx%100==0:
+      print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, opts.niter_classification,  classification_loss.item()))
+  acc = sup_functions.test_classifier_on_generator(new_classifier, gen_model, test_loader)
+  print('Test accuracy, classification training on reconstructed data: ' + str(acc))
+  accuracies['classification_on_reconstructed'].append(acc)
+  torch.save(accuracies, opts.root+'results/pre_stream_training_accuracy_' + name_to_save)
+  if acc > max_test_acc:
+    max_test_acc = acc
+    best_models['classifier_on_reconstructed'] = new_classifier
+    torch.save(best_models, opts.root + 'pretrained_models/pre_stream_training_' + name_to_save)  
+
 print('Finished Training')
