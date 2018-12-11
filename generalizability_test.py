@@ -70,6 +70,8 @@ if torch.cuda.is_available() and not opts.cuda:
 print('Loading data')
 trainset, testset = sup_functions.load_dataset(opts)
 gen_model = torch.load(opts.root + 'pretrained_models/representativity_' + opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth')
+print('Loading pretrained gen model from:')
+print(opts.root + 'pretrained_models/representativity_' + opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth')
 #gen_model = sup_functions.init_generative_model(opts)
 
 classifier = sup_functions.init_classifier(opts)
@@ -83,10 +85,10 @@ if opts.cuda:
   gen_model = gen_model.cuda()
   classification_criterion = classification_criterion.cuda()
   classifier = classifier.cuda()
-  
+gen_model.eval()  
 print('Reconstructing data')
-trainset = sup_functions.reconstruct_dataset_with_AE(trainset, gen_model, bs = 1000)  
-testset = sup_functions.reconstruct_dataset_with_AE(testset, gen_model, bs = 1000)
+#trainset = sup_functions.reconstruct_dataset_with_AE(trainset, gen_model, bs = 1000)  
+#testset = sup_functions.reconstruct_dataset_with_AE(testset, gen_model, bs = 1000)
 
 
   
@@ -96,8 +98,10 @@ test_loader = data_utils.DataLoader(testset, batch_size=opts.batch_size, shuffle
 
 max_test_acc = 0
 accuracies = []
+accuracies_gen = []
 for epoch in range(opts.niter):  # loop over the dataset multiple times
   print('Training epoch ' + str(epoch))
+  classification_optimizer.zero_grad()
   for idx, (train_X, train_Y) in enumerate(train_loader):
     inputs = train_X.float().cuda()
     labels = train_Y.cuda()
@@ -109,12 +113,15 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
     if idx%100==0:
       print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, opts.niter,  classification_loss.item()))  
   acc = sup_functions.test_classifier(classifier, test_loader)
+  acc_gen = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
   accuracies.append(acc)
-  if accuracies[-1] > max_test_acc:
-    max_test_acc = accuracies[-1]
+  accuracies_gen.append(acc_gen)
+  if accuracies_gen[-1] > max_test_acc:
+    max_test_acc = accuracies_gen[-1]
     best_classifier = classifier
     torch.save(best_classifier, opts.root+'pretrained_models/generalizability_classifier_' + name_to_save)      
   print('Test accuracy: ' + str(accuracies[-1]))
-
+  print('Test accuracy on reconstructed: ' + str(accuracies_gen[-1]))
   torch.save(accuracies, opts.root+'results/generalizability_accuracy_' + name_to_save)
+  torch.save(accuracies_gen, opts.root+'results/generalizability_accuracy_on_reconstructed_' + name_to_save)
 print('Finished Training')

@@ -155,6 +155,8 @@ while Stream:
       # Generative model training
       #sup_functions.train_gen_model(gen_model, classifier, train_loader, generative_criterion_classification, generative_optimizer_classification,
  #generative_criterion_reconstruction, generative_optimizer_reconstruction,opts) 
+      generative_optimizer_classification.zero_grad()
+      classification_optimizer.zero_grad()
       for idx, (train_X, train_Y) in enumerate(train_loader):
         inputs = train_X.float()
         labels = train_Y
@@ -175,13 +177,16 @@ while Stream:
         #print('Paco 6')
         #classification_optimizer.step()
         generative_optimizer_classification.step()
-        #classification_optimizer.zero_grad()
+        classification_optimizer.zero_grad()
         generative_optimizer_classification.zero_grad()
         #print('Paco 7')
         if idx%100==0:
           print('epoch [{}/{}], generative classification loss: {:.4f}'
             .format(epoch, opts.niter,  generative_loss_class.item()))
+      
       for idx_classifier in range(10):
+        generative_optimizer_classification.zero_grad()
+        classification_optimizer.zero_grad()
         for idx, (train_X, train_Y) in enumerate(train_loader):
           inputs = train_X.float().cuda()
           labels = train_Y.cuda()
