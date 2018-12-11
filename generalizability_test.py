@@ -74,14 +74,14 @@ gen_model = torch.load(opts.root + 'pretrained_models/representativity_' + opts.
 
 classifier = sup_functions.init_classifier(opts)
 
-criterion = nn.CrossEntropyLoss(); 
-optimizer = optim.SGD(classifier.parameters(), lr=opts.lr, momentum=0.99)
+classification_criterion = nn.CrossEntropyLoss(); 
+classification_optimizer = optim.SGD(classifier.parameters(), lr=opts.lr, momentum=0.99)
 if opts.optimizer=='Adam':
   optimizer = optim.Adam(classifier.parameters(), lr=opts.lr, betas=(opts.beta1, 0.999), weight_decay=1e-5)
 
 if opts.cuda:
   gen_model = gen_model.cuda()
-  criterion = criterion.cuda()
+  classification_criterion = classification_criterion.cuda()
   classifier = classifier.cuda()
   
 print('Reconstructing data')
@@ -98,8 +98,18 @@ max_test_acc = 0
 accuracies = []
 for epoch in range(opts.niter):  # loop over the dataset multiple times
   print('Training epoch ' + str(epoch))
-  sup_functions.train_classifier(classifier, train_loader, optimizer, criterion)
-  accuracies.append(sup_functions.test_classifier(classifier, test_loader))
+  for idx, (train_X, train_Y) in enumerate(train_loader):
+    inputs = train_X.float().cuda()
+    labels = train_Y.cuda()
+    orig_classes = classifier(inputs)
+    classification_loss = classification_criterion(orig_classes, labels.long())
+    classification_loss.backward()
+    classification_optimizer.step()
+    classification_optimizer.zero_grad()
+    if idx%100==0:
+      print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, opts.niter,  classification_loss.item()))  
+  acc = sup_functions.test_classifier(classifier, test_loader)
+  accuracies.append(acc)
   if accuracies[-1] > max_test_acc:
     max_test_acc = accuracies[-1]
     best_classifier = classifier
