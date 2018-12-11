@@ -131,7 +131,7 @@ while Stream:
   #-----------------------------------------------------------------------------------------------
   # Inititalize the loader for corresponding class
   indices_real = (orig_trainset.tensors[1].long()==data_class).nonzero().long()
-  real_data_loader = DataLoader(orig_trainset, batch_size=opts.stream_batch_size, sampler = SubsetRandomSampler(indices_real.squeeze()))
+  real_data_loader = DataLoader(orig_trainset, batch_size=opts.stream_batch_size, sampler = SubsetRandomSampler(indices_real.squeeze()), drop_last=True)
   class_duration = random.randint(1, opts.max_class_duration) # Number of stream batches we are going to receive
   
   received_batches = 0
@@ -200,6 +200,7 @@ while Stream:
   # Testing phase in the end of the interval
   acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
   accuracies.append(acc)
+  torch.save(accuracies,opts.root+'results/stream_accuracy_' + name_to_save )
   print('Test accuracy: ' + str(accuracies[-1]))
   
 #for t in range(opts.niter):  # loop over the dataset multiple times

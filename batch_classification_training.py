@@ -34,7 +34,7 @@ parser.add_argument('--nb_of_classes', default=100, type=int, help='number of cl
 parser.add_argument('--class_size', default=100, type=int, help='number of elements in each class')
 parser.add_argument('--feature_size', default=2048, type=int, help='feature size in synthetic dataset')
 parser.add_argument('--generate_data', action='store_true', help='generates a new dataset if enabled, loads predefined otherwise')
-
+parser.add_argument('--first_half', action='store_true', help='run experiments on the half of the classes of the dataset')
 opts = parser.parse_args()
 
 print(opts)

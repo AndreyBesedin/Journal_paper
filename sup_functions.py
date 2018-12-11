@@ -249,7 +249,10 @@ def load_dataset(opts):
     full_data = False
     if not opts.generate_data:
       try:
-        full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
+        if opts.first_half:
+          full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples_first_half.pth')
+        else:
+          full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
       except IOError:
         print('No data with corresponding characteristics found, creating new dataset')
         pass
