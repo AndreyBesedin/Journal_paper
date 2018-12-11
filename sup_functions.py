@@ -20,7 +20,7 @@ def to_img(x):
 
 def get_indices_for_classes(data, data_classes):
   # Creates a list of indices of samples from the dataset, corresponding to given classes
-  return torch.FloatTensor(list((data[1].long()==class_).tolist() for class_ in data_classes)).sum(0).nonzero().long().squeeze()
+  return torch.FloatTensor(list((data.tensors[1].long()==class_).tolist() for class_ in data_classes)).sum(0).nonzero().long().squeeze()
 
 def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
   running_loss = 0.0
@@ -252,11 +252,8 @@ def load_dataset(opts):
   elif opts.dataset=='Synthetic':
     full_data = False
     if not opts.generate_data:
-      try:
-        if opts.first_half:
-          full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples_first_half.pth')
-        else:
-          full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
+      try:     
+        full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
       except IOError:
         print('No data with corresponding characteristics found, creating new dataset')
         pass

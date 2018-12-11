@@ -77,8 +77,8 @@ elif opts.dataset == 'Synthetic':
   
 indices_train = sup_functions.get_indices_for_classes(trainset, pretrain_on_classes)
 indices_test = sup_functions.get_indices_for_classes(testset, pretrain_on_classes)
-train_loader_classif = data_utils.DataLoader(trainset, batch_size=opts.batch_size, shuffle = True, sampler = SubsetRandomSampler(indices_train))
-train_loader_gen = data_utils.DataLoader(trainset, batch_size=opts.batch_size, shuffle = True, sampler = SubsetRandomSampler(indices_train))
+train_loader_classif = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train))
+train_loader_gen = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train))
 test_loader = data_utils.DataLoader(testset, batch_size=opts.batch_size, shuffle = False, sampler = SubsetRandomSampler(indices_test))
 
 gen_model = sup_functions.init_generative_model(opts)
@@ -105,12 +105,23 @@ accuracies = []
 for epoch in range(opts.niter):  # loop over the dataset multiple times
   opts.epoch = epoch
   print('Training epoch ' + str(epoch))
+  r=torch.randperm(indices_train.shape[0])
+  indices_train_new=indices_train[r[:, None]]
 #  bar = Bar('Training: ', max=int(opts['nb_classes']*opts['samples_per_class_train']/opts['batch_size']))
   print('Training the classifier')
+  train_loader_gen = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
   if epoch>=25:
     stream_trainset = reconstruct_dataset_with_AE(trainset, gen_model, opts.batch_size)
-    train_loader_classif = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, shuffle = True, sampler = SubsetRandomSampler(indices_train))
+    train_loader_classif = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
+  else:
+    train_loader_classif = data_utils.DataLoader(trainset, batch_size=opts.batch_size, sampler = SubsetRandomSampler(indices_train_new))
   for idx, (train_X, train_Y) in enumerate(train_loader_classif):
+    inputs = train_X.float()
+    labels = train_Y
+    if opts.cuda:
+      inputs = inputs.cuda()
+      labels = labels.cuda()
+
     orig_classes = classifier(inputs)
     orig_classes.require_grad=True
     classification_loss = classification_criterion(orig_classes, labels.long())

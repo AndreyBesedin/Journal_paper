@@ -85,8 +85,8 @@ if opts.cuda:
   classifier = classifier.cuda()
   
 print('Reconstructing data')
-trainset = sup_functions.reconstruct_dataset_with_AE(trainset, gen_model, bs = 1000, real_data_ratio=0)  
-testset = sup_functions.reconstruct_dataset_with_AE(testset, gen_model, bs = 1000, real_data_ratio=0)
+trainset = sup_functions.reconstruct_dataset_with_AE(trainset, gen_model, bs = 1000)  
+testset = sup_functions.reconstruct_dataset_with_AE(testset, gen_model, bs = 1000)
 
 
   
