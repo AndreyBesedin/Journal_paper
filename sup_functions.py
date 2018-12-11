@@ -18,6 +18,10 @@ def to_img(x):
   x = x.view(x.size(0), 1, 28, 28)
   return x
 
+def get_indices_for_classes(data, data_classes):
+  # Creates a list of indices of samples from the dataset, corresponding to given classes
+  return torch.FloatTensor(list((data[1].long()==class_).tolist() for class_ in data_classes)).sum(0).nonzero().long().squeeze()
+
 def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
   running_loss = 0.0
   for idx, (train_X, train_Y) in enumerate(train_loader_):
@@ -119,8 +123,8 @@ def weights_init(m):
     torch.nn.init.kaiming_normal_(m.weight.data)
     m.bias.data.fill_(0)
 
-def reconstruct_dataset_with_AE(dataset, rec_model, bs = 100, real_data_ratio=0):
-  data_loader = DataLoader(dataset, batch_size=bs, shuffle=True)
+def reconstruct_dataset_with_AE(dataset, rec_model, bs = 1000):
+  data_loader = DataLoader(dataset, batch_size=bs, shuffle=False)
   data_size = dataset.tensors[0].shape[0]
   res_data = torch.zeros(dataset.tensors[0].shape)
   res_labels = torch.zeros(data_size)
