@@ -183,8 +183,8 @@ while Stream:
             .format(epoch, opts.niter,  generative_loss_class.item()))
       for idx_classifier in range(10):
         for idx, (train_X, train_Y) in enumerate(train_loader):
-          inputs = train_X.float()
-          labels = train_Y          
+          inputs = train_X.float().cuda()
+          labels = train_Y.cuda()
           orig_classes = classifier(inputs)
           orig_classes.require_grad=True
           classification_loss = classification_criterion(orig_classes, labels.long())
