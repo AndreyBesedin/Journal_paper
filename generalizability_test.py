@@ -103,7 +103,7 @@ for epoch in range(opts.niter):  # loop over the dataset multiple times
   print('Training epoch ' + str(epoch))
   classification_optimizer.zero_grad()
   for idx, (train_X, train_Y) in enumerate(train_loader):
-    inputs = train_X.float().cuda()
+    inputs = gen_model(train_X.float().cuda())
     labels = train_Y.cuda()
     orig_classes = classifier(inputs)
     classification_loss = classification_criterion(orig_classes, labels.long())
