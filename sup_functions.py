@@ -20,7 +20,8 @@ def to_img(x):
 
 def get_indices_for_classes(data, data_classes):
   # Creates a list of indices of samples from the dataset, corresponding to given classes
-  return torch.FloatTensor(list((data.tensors[1].long()==class_).tolist() for class_ in data_classes)).sum(0).nonzero().long().squeeze()
+  indices = torch.FloatTensor(list((data.tensors[1].long()==class_).tolist() for class_ in data_classes)).sum(0).nonzero().long().squeeze()
+  return indices[torch.randperm(len(indices))]
 
 def train_classifier(classifier_, train_loader_, optimizer_, criterion_):
   running_loss = 0.0
