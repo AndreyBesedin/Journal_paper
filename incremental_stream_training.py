@@ -67,7 +67,7 @@ elif opts.dataset=='LSUN':
   
 AE_specific = ''
 if opts.generator_type == 'AE':
-  AE_specific = '_' + str(opts.code_size) + '_trade-off_' + str(opts.betta1) + '_'
+  AE_specific = '_' + str(opts.code_size) + '_cl_loss_' + str(opts.betta1) + '_rec_loss_' +str(opts.betta2) +'_'
 name_to_save = opts.dataset + '_' + opts.generator_type + AE_specific + str(opts.nb_of_classes) + '_classes.pth'
   
 print(opts)
