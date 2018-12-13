@@ -173,19 +173,20 @@ while Stream:
     print('Training generative model')
     generative_optimizer_classification.zero_grad()
     classification_optimizer.zero_grad()
-    for idx, (train_X, train_Y) in enumerate(train_loader):
-      inputs = train_X.float()
-      labels = train_Y
-      if opts.cuda:
-        inputs = inputs.cuda()
-        labels = labels.cuda()
+    
+    for idx, (train_X, _) in enumerate(train_loader):
+      inputs = train_X.float().cuda()
       # ===================forward=====================
-      outputs = gen_model(inputs)
-      orig_classes = classifier(inputs)
-      orig_classes.require_grad=False
-      classification_reconstructed = classifier(outputs)
-      loss_gen = generative_criterion_classification(classification_reconstructed, orig_classes)
+#      outputs = gen_model(inputs)
+      print('Paco 1')
+#      orig_classes = classifier(inputs)
+      #orig_classes.require_grad=False
+#      classification_reconstructed = classifier(outputs)
+#      loss_gen = generative_criterion_classification(classification_reconstructed, orig_classes)
+      loss_gen = generative_criterion_classification(classifier(gen_model(inputs)), classifier(inputs).data)
+      print('Paco 2')
       loss_gen.backward()
+      print('Paco 3')
       generative_optimizer_classification.step()
       generative_optimizer_classification.zero_grad()
       if idx%100==0:
