@@ -96,7 +96,7 @@ pretrained_models = torch.load(opts.root+ 'pretrained_models/pre_stream_training
 gen_model = pretrained_models['generative_model'].cuda()
 classifier = pretrained_models['classifier_on_reconstructed'].cuda()
 accuracies = []
-acc = test_classifier_on_generator(classifier, gen_model, test_loader)
+acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
 print('Accuracy of the pretrained classifier on full test data: ' + str(acc))
 accuracies.append(acc)
 max_test_acc = accuracies[0]
