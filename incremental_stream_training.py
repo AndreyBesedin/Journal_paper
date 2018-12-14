@@ -60,10 +60,15 @@ print('Loading data')
 if opts.cuda:
   torch.cuda.set_device(opts.cuda_device)
   
-if opts.dataset=='MNIST':
+  
+if opts.dataset=='MNIST_features':
   opts.nb_of_classes=opts.MNIST_classes
+  opts.max_stream_classes = 3
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes
+  opts.max_stream_classes = 5
+elif opts.dataset=='Synthetic':
+  opts.max_stream_classes = 20
   
 AE_specific = ''
 if opts.generator_type == 'AE':
@@ -92,11 +97,11 @@ if opts.dataset == 'LSUN':
 elif opts.dataset == 'Synthetic':
   pretrained_on_classes = range(250)
 
-#pretrained_models = torch.load(opts.root+ 'pretrained_models/pre_stream_training_' + name_to_save)
-#gen_model = pretrained_models['generative_model'].cuda()
-#classifier = pretrained_models['classifier_on_reconstructed'].cuda()
-gen_model = sup_functions.init_generative_model(opts)
-classifier = sup_functions.init_classifier(opts)
+pretrained_models = torch.load(opts.root+ 'pretrained_models/pre_stream_training_' + name_to_save)
+gen_model = pretrained_models['generative_model'].cuda()
+classifier = pretrained_models['classifier_on_reconstructed'].cuda()
+#gen_model = sup_functions.init_generative_model(opts)
+#classifier = sup_functions.init_classifier(opts)
 accuracies = []
 #acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
 #print('Accuracy of the pretrained classifier on full test data: ' + str(acc))
@@ -112,10 +117,9 @@ for idx_class in pretrained_on_classes:
   class_loader = data_utils.DataLoader(original_trainset, batch_size=opts.fake_storage_size, sampler = SubsetRandomSampler(indices_class))
   for (X, Y) in class_loader:
     inputs = X.clone().float() 
-    #rec = gen_model(inputs.cuda())
-    #rec.detach
-    #historical_storage_full[str(idx_class)] = rec
-    historical_storage_full[str(idx_class)] = X[:]
+    rec = gen_model(inputs.cuda())
+    historical_storage_full[str(idx_class)] = rec.data
+    #historical_storage_full[str(idx_class)] = X[:]
     historical_storage_full[str(idx_class)][-opts.real_storage_size:] = X[-opts.real_storage_size:]
     historical_storage_real[str(idx_class)] = X[-opts.real_storage_size:]
     break
@@ -165,7 +169,7 @@ while Stream:
       indices_class = sup_functions.get_indices_for_classes(original_trainset, [idx_class])
       class_loader = data_utils.DataLoader(original_trainset, batch_size=opts.fake_storage_size, sampler = SubsetRandomSampler(indices_class))
       for (X, Y) in class_loader:
-        historical_storage_full[str(idx_class)] = X
+        historical_storage_full[str(idx_class)] = X[:]
         historical_storage_real[str(idx_class)] = X[-opts.real_storage_size:]
         break
     
@@ -185,25 +189,23 @@ while Stream:
       # ===================forward=====================
       outputs = gen_model(inputs)
       orig_classes = classifier(inputs)
-      orig_classes.require_grad=False
+      orig_classes = orig_classes.data
       classification_reconstructed = classifier(outputs)
       loss_gen = generative_criterion_classification(classification_reconstructed, orig_classes)
 
       #loss_gen = generative_criterion_classification(classifier(gen_model(inputs)), orig_classes)
-      print('Paco 2')
       loss_gen.backward()
-      print('Paco 3')
       generative_optimizer_classification.step()
       generative_optimizer_classification.zero_grad()
       classification_optimizer.zero_grad()
-      if idx%100==0:
-        print('epoch [{}/{}], generators loss: {:.4f}'
-          .format(interval, opts.niter,  loss_gen.item()))
+      #if idx%100==0:
+      #  print('epoch [{}/{}], generators loss: {:.4f}'
+      #    .format(interval, opts.niter,  loss_gen.item()))
 
     # ===================backward====================
     
     print('Retraining the classifier')
-    classification_optimizer = optim.Adam(classifier.parameters(), lr=opts.lr, betas=(opts.beta1, 0.999), weight_decay=1e-5)
+    #classification_optimizer = optim.Adam(classifier.parameters(), lr=opts.lr, betas=(opts.beta1, 0.999), weight_decay=1e-5)
 
     classification_optimizer.zero_grad()
     generative_optimizer_classification.zero_grad()
@@ -216,11 +218,12 @@ while Stream:
       classification_loss.backward()
       classification_optimizer.step()
       classification_optimizer.zero_grad()
-      if idx%100==0:
-        print('interval [{}/{}], classification loss: {:.4f}'.format(interval, opts.niter,  classification_loss.item()))
+      #if idx%100==0:
+      #  print('interval [{}/{}], classification loss: {:.4f}'.format(interval, opts.niter,  classification_loss.item()))
         
   for idx_class in historical_storage_real.keys():
-      historical_storage_full[str(idx_class)][-300:] = gen_model(historical_storage_real[str(idx_class)].cuda()).float()      
+      rec = gen_model(historical_storage_full[str(idx_class)].cuda())
+      historical_storage_full[str(idx_class)] = rec.data.float()      
   #classifier.eval()
   #gen_model.eval()
   acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
