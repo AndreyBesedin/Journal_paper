@@ -23,7 +23,7 @@ class Classifier_MNIST_28x28(nn.Module):
     x = self.fc4(x)
     return x
 
-class Classifier_MNIST_512_features(nn.Module):
+class Classifier_MNIST_512_features_rees(nn.Module):
   def __init__(self, nb_classes):
     super(Classifier_MNIST_512_features, self).__init__()
     self.fc1 = nn.Linear(512, 256)
@@ -35,6 +35,21 @@ class Classifier_MNIST_512_features(nn.Module):
     x = F.relu(self.fc2(x))
     x = self.fc3(x)
     return x
+
+class Classifier_MNIST_512_features(nn.Module):
+  def __init__(self, nb_classes):
+    super(Classifier_MNIST_512_features, self).__init__()
+    self.net = nn.Sequential(
+            nn.Linear(512, 256),
+            nn.ReLU(False),
+            nn.Linear(256, 128),
+            nn.ReLU(False),
+            nn.Linear(128, nb_classes)
+            )
+
+  def forward(self, x):
+    y = self.net(x)
+    return y
   
 class Classifier_2048_features(nn.Module):
   def __init__(self, nb_classes):
@@ -55,7 +70,7 @@ class autoencoder_MNIST_512_features(nn.Module):
   def __init__(self, code_size):
     def linear_block(in_, out_):
 #      return nn.Sequential(nn.Linear(in_, out_), nn.ReLU(True))
-      return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
+      return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(False))
     super(autoencoder_MNIST_512_features, self).__init__()
     self.encoder = nn.Sequential(
       linear_block(512, 128),
@@ -69,9 +84,9 @@ class autoencoder_MNIST_512_features(nn.Module):
       nn.Tanh()
     )
   def forward(self, x):
-    x = self.encoder(x)
-    x = self.decoder(x)
-    return x
+    y = self.encoder(x)
+    z = self.decoder(y)
+    return z
   
 class autoencoder_2048(nn.Module):
   def __init__(self, code_size):
