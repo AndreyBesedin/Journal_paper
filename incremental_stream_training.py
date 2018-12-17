@@ -103,9 +103,9 @@ classifier = pretrained_models['classifier_on_reconstructed'].cuda()
 #gen_model = sup_functions.init_generative_model(opts)
 #classifier = sup_functions.init_classifier(opts)
 accuracies = []
-#acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
-#print('Accuracy of the pretrained classifier on full test data: ' + str(acc))
-#accuracies.append(acc)
+acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
+print('Accuracy on the full testset before training on stream: ' + str(acc))
+accuracies.append(acc)
 max_test_acc = 0
 #max_test_acc = accuracies[0]
 historical_storage_full = {}
