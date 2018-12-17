@@ -53,6 +53,7 @@ parser.add_argument('--max_class_duration', default=10, type=int, help='size of 
 parser.add_argument('--fake_to_real_ratio', default=40, type=int, help='size of the batch we receive from stream')
 parser.add_argument('--max_stream_classes', default=3, type=int, help='Max number of simultaneous classes in the stream')
 parser.add_argument('--max_interval_duration', default=10, type=int, help='Max duration of each interval environment')
+parser.add_argument('--max_stream_intervals', default=500, type=int, help='Max duration of each interval environment')
 opts = parser.parse_args()
 opts.fake_storage_size = opts.stream_batch_size
 
@@ -63,13 +64,16 @@ if opts.cuda:
   
 if opts.dataset=='MNIST_features':
   opts.nb_of_classes=opts.MNIST_classes
-  opts.max_stream_classes = 3
+  opts.max_stream_classes = 2
+  opts.max_stream_intervals = 500
 elif opts.dataset=='LSUN':
   opts.nb_of_classes=opts.LSUN_classes
-  opts.max_stream_classes = 5
+  opts.max_stream_classes = 6
+  opts.max_stream_intervals = 1000
 elif opts.dataset=='Synthetic':
-  opts.max_stream_classes = 20
-  
+  opts.max_stream_classes = 100
+  opts.max_stream_intervals = 1000
+
 AE_specific = ''
 if opts.generator_type == 'AE':
   AE_specific = '_' + str(opts.code_size) + '_cl_loss_' + str(opts.betta1) + '_rec_loss_' +str(opts.betta2) +'_'
@@ -136,6 +140,7 @@ generative_criterion_classification = generative_criterion_classification.cuda()
 classification_criterion = classification_criterion.cuda()
 
 stream_classes = []
+res_to_save = {}
 Stream = True
 interval = 0
 best_models = {}
@@ -147,7 +152,7 @@ def regroup_data_from_storage(historical_storage, opts):
     train_labels[idx_class*opts.fake_storage_size:(idx_class+1)*opts.fake_storage_size] = int(label)
   return train_data, train_labels
   
-while Stream:   
+for stream_intervals in range(opts.max_stream_intervals):   
   """ 
   Initialize the data buffer that will be used for training on current interval
   The buffer size is k*(size of the stream batch), where k is equal to the number of already seen classes
@@ -174,6 +179,7 @@ while Stream:
         break
     
     stream_classes.append(new_data_classes)
+    res_to_save['stream_classes'] = stream_classes
     train_data, train_labels = regroup_data_from_storage(historical_storage_full, opts)
     stream_trainset = TensorDataset(train_data, train_labels)
     train_loader = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, shuffle = True)
@@ -231,7 +237,8 @@ while Stream:
   #gen_model.train()
   print('Test accuracy, classification training on reconstructed data: ' + str(acc))
   accuracies.append(acc)
-  torch.save(accuracies, opts.root+'results/stream_training_accuracy_' + name_to_save)
+  res_to_save['accuracies'] = accuracies
+  torch.save(res_to_save, opts.root+'results/stream_training_accuracy_' + name_to_save)
   if acc > max_test_acc:
     max_test_acc = acc
     best_models['classifier'] = classifier
