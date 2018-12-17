@@ -40,12 +40,12 @@ class Classifier_MNIST_512_features_2(nn.Module):
   def __init__(self, nb_classes):
     super(Classifier_MNIST_512_features_2, self).__init__()
     self.net = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.ReLU(False),
-            nn.Linear(256, 128),
-            nn.ReLU(False),
-            nn.Linear(128, nb_classes)
-            )
+      nn.Linear(512, 256),
+      nn.ReLU(False),
+      nn.Linear(256, 128),
+      nn.ReLU(False),
+      nn.Linear(128, nb_classes)
+      )
 
   def forward(self, x):
     y = self.net(x)
@@ -157,7 +157,7 @@ class autoencoder_MNIST(nn.Module):
 class CGAN_Generator(nn.Module):
   def __init__(self):
     super(CGAN_Generator, self).__init__()
-    self.label_emb = nn.Embedding(opt.n_classes, opt.n_classes)
+    self.label_emb = nn.Embedding(opts.n_classes, opts.n_classes)
     def block(in_feat, out_feat, normalize=True):
       layers = [  nn.Linear(in_feat, out_feat)]
       if normalize:
@@ -165,11 +165,10 @@ class CGAN_Generator(nn.Module):
       layers.append(nn.LeakyReLU(0.2, inplace=True))
       return layers
     self.model = nn.Sequential(
-      *block(opt.latent_dim+opt.n_classes, 128, normalize=False),
+      *block(opts.latent_dim+opts.n_classes, 128, normalize=False),
       *block(128, 256),
       *block(256, 512),
-      *block(512, 1024),
-      nn.Linear(1024, int(np.prod(img_shape))),
+      nn.Linear(512, opts.feature_size),
       nn.Tanh()
     )
 
@@ -177,7 +176,6 @@ class CGAN_Generator(nn.Module):
     # Concatenate label embedding and image to produce input
     gen_input = torch.cat((self.label_emb(labels), noise), -1)
     img = self.model(gen_input)
-    img = img.view(img.size(0), *img_shape)
     return img
 
 class CGAN_Discriminator(nn.Module):
