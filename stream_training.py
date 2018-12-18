@@ -26,8 +26,8 @@ parser.add_argument('--workers', type=int, help='number of data loading workers'
 parser.add_argument('--batch_size', type=int, default=100, help='input batch size')
 parser.add_argument('--image_size', type=int, default=28, help='the height / width of the input image to network')
 parser.add_argument('--niter', type=int, default=100, help='number of training intervals')
-parser.add_argument('--niter_generation', type=int, default=1, help='number of training epochs')
-parser.add_argument('--niter_classification', type=int, default=1, help='number of training epochs')
+parser.add_argument('--niter_generation', type=int, default=10, help='number of training epochs')
+parser.add_argument('--niter_classification', type=int, default=10, help='number of training epochs')
 parser.add_argument('--lr', type=float, default=0.001, help='learning rate, default=0.001')
 parser.add_argument('--betta1', type=float, default=0.2, help='trade-off coefficients for ae training, classification loss')
 parser.add_argument('--betta2', type=float, default=1, help='trade-off coefficients for ae training, reconstruction loss')
@@ -164,7 +164,7 @@ for epoch in range(opts.niter_classification):  # loop over the dataset multiple
 print('Training generative model')
 max_test_acc = 0
 accuracies['generative_model_progress'] = []
-classifier = best_models['original_classifier']
+#classifier = best_models['original_classifier']
 for epoch in range(opts.niter_generation):  # loop over the dataset multiple times
   print('Training epoch ' + str(epoch))
   r=torch.randperm(indices_train.shape[0])
