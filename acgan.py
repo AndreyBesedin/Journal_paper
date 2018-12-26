@@ -69,30 +69,39 @@ class Generator(nn.Module):
     gen_input = torch.cat((self.label_emb(labels), noise), -1)
     img = self.model(gen_input)
     return img
-
+  
 class Discriminator(nn.Module):
   def __init__(self):
     super(Discriminator, self).__init__()
-    self.label_embedding = nn.Embedding(opts.nb_of_classes, opts.nb_of_classes)
 
-    self.model = nn.Sequential(
-      nn.Linear(opts.nb_of_classes + opts.feature_size, 512),
-      nn.LeakyReLU(0.2, inplace=True),
-      nn.Linear(512, 512),
-      nn.Dropout(0.4),
-      nn.LeakyReLU(0.2, inplace=True),
-      nn.Linear(512, 512),
-      nn.Dropout(0.4),
-      nn.LeakyReLU(0.2, inplace=True),
-      nn.Linear(512, 1)
+    def discriminator_block(in_filters, out_filters, bn=True):
+      """Returns layers of each discriminator block"""
+      block = [   nn.Linear(in_features, out_features),
+                  nn.LeakyReLU(0.2, inplace=True),
+                  nn.Dropout2d(0.25)]
+      if bn:
+        block.append(nn.BatchNorm1d(out_features))
+      return block
+
+    self.linear_blocks = nn.Sequential(
+      *discriminator_block(opts.feature_size, 512 bn=False),
+      *discriminator_block(512, 256),
+      *discriminator_block(256, 256),
+      *discriminator_block(256, 128),
     )
 
-  def forward(self, img, labels):
-    # Concatenate label embedding and image to produce input
-    d_in = torch.cat(img, self.label_embedding(labels), -1)
-    validity = self.model(d_in)
-    return validity
+    # Output layers
+    self.adv_layer = nn.Sequential( nn.Linear(128, 1),
+                                   nn.Sigmoid())
+    self.aux_layer = nn.Sequential( nn.Linear(128, opts.nb_of_classes),
+                                    nn.Softmax())
 
+  def forward(self, img):
+    out = self.linear_blocks(img)
+    validity = self.adv_layer(out)
+    label = self.aux_layer(out)
+    return validity, label
+      
 # Loss functions
 adversarial_loss = torch.nn.BCELoss()
 auxiliary_loss = torch.nn.CrossEntropyLoss()
