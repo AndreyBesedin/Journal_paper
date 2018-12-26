@@ -74,7 +74,7 @@ class Discriminator(nn.Module):
   def __init__(self):
     super(Discriminator, self).__init__()
 
-    def discriminator_block(in_filters, out_filters, bn=True):
+    def discriminator_block(in_features, out_features, bn=True):
       """Returns layers of each discriminator block"""
       block = [   nn.Linear(in_features, out_features),
                   nn.LeakyReLU(0.2, inplace=True),
@@ -84,7 +84,7 @@ class Discriminator(nn.Module):
       return block
 
     self.linear_blocks = nn.Sequential(
-      *discriminator_block(opts.feature_size, 512 bn=False),
+      *discriminator_block(opts.feature_size, 512, bn=False),
       *discriminator_block(512, 256),
       *discriminator_block(256, 256),
       *discriminator_block(256, 128),
