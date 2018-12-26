@@ -32,8 +32,8 @@ parser.add_argument('--img_size', type=int, default=32, help='size of each image
 parser.add_argument('--channels', type=int, default=1, help='number of image channels')
 parser.add_argument('--sample_interval', type=int, default=400, help='interval between image sampling')
 parser.add_argument('--feature_size', type=int, default=512, help='dimension of the input data')
-opt = parser.parse_args()
-print(opt)
+opts = parser.parse_args()
+print(opts)
 
 cuda = True if torch.cuda.is_available() else False
 
@@ -122,8 +122,8 @@ classifier = models.Classifier_MNIST_512_features(10)
 classifier.load_state_dict(classifier_dict)
 classifier = classifier.cuda()
 # Optimizers
-optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
+optimizer_G = torch.optim.Adam(generator.parameters(), lr=opts.lr, betas=(opts.b1, opts.b2))
+optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opts.lr, betas=(opts.b1, opts.b2))
 
 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
@@ -144,7 +144,7 @@ def sample_image(n_row):
 #  Training
 # ----------
 
-for epoch in range(opt.n_epochs):
+for epoch in range(opts.n_epochs):
   for i, (imgs, labels) in enumerate(dataloader):
     batch_size = imgs.shape[0]
 
@@ -163,8 +163,8 @@ for epoch in range(opt.n_epochs):
     optimizer_G.zero_grad()
 
     # Sample noise and labels as generator input
-    z = Variable(FloatTensor(np.random.normal(0, 1, (batch_size, opt.latent_dim))))
-    gen_labels = Variable(LongTensor(np.random.randint(0, opt.nb_of_classes, batch_size)))
+    z = Variable(FloatTensor(np.random.normal(0, 1, (batch_size, opts.latent_dim))))
+    gen_labels = Variable(LongTensor(np.random.randint(0, opts.nb_of_classes, batch_size)))
 
     # Generate a batch of images
     gen_imgs = generator(z, gen_labels)
@@ -203,7 +203,7 @@ for epoch in range(opt.n_epochs):
     d_loss.backward()
     optimizer_D.step()
 
-    print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f, acc: %d%%] [G loss: %f]" % (epoch, opt.n_epochs, i, len(dataloader),
+    print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f, acc: %d%%] [G loss: %f]" % (epoch, opts.n_epochs, i, len(dataloader),
                                                         d_loss.item(), 100 * d_acc,
                                                         g_loss.item()))
     batches_done = epoch * len(dataloader) + i
