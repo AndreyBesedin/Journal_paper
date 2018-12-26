@@ -217,9 +217,13 @@ for epoch in range(opts.n_epochs):
                                                         g_loss.item()))
     batches_done = epoch * len(dataloader) + i
  
-  gen_samples = sample_image(n_row=10)
-  res = classifier(gen_samples[0]).max(1)[1]
-  cm = confusion_matrix(gen_samples[1], res)
-  print("Average accuracy: " + str(cm.diagonal().mean()/10))
+  print("Testing the quality of generated samples:")
+  test_epoch = 100
+  cm = [[0 for i in range(opts.nb_of_classes)] for j in range(opts.nb_of_classes)] 
+  for idx in range(test_epoch):
+    gen_samples = sample_image(n_row=10)
+    res = classifier(gen_samples[0]).max(1)[1]
+    cm += confusion_matrix(gen_samples[1], res)
+  print("Average accuracy: " + str(cm.diagonal().mean()*10/test_epoch))
   print('Confusion matrix')
-  print(cm/10)
+  print(cm*10/test_epoch)
