@@ -43,8 +43,8 @@ parser.add_argument('--optimizer_classification', default='Adam', help='Adam | S
 parser.add_argument('--optimizer_generator', default='Adam', help='Adam | SGD')
 #Synthetic data options
 parser.add_argument('--nb_of_classes', default=10, type=int, help='number of classes in synthetic dataset')
-parser.add_argument('--class_size', default=100, type=int, help='number of elements in each class')
-parser.add_argument('--feature_size', default=2048, type=int, help='feature size in synthetic dataset')
+parser.add_argument('--class_size', default=1000, type=int, help='number of elements in each class')
+parser.add_argument('--feature_size', default=128, type=int, help='feature size in synthetic dataset')
 parser.add_argument('--generate_data', action='store_true', help='generates a new dataset if enabled, loads predefined otherwise')
 parser.add_argument('--real_storage_size', default=300, type=int, help='size of the storage of real data per class')
 parser.add_argument('--fake_storage_size', default=2000, type=int, help='size of the storage of fake data per class')

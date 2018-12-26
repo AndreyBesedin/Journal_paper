@@ -152,7 +152,9 @@ def init_generative_model(opts):
   elif opts.dataset == 'MNIST_features':
     gen_model = models.autoencoder_MNIST_512_features(int(opts.code_size))
   else:
-    if opts.generator_type == 'AE':
+    if opts.feature_size == 128:
+      gen_model = models.autoencoder_128_features(int(opts.code_size))
+    else:
       gen_model = models.autoencoder_2048(int(opts.code_size))
   if opts.load_gen_model:
     #TODO correct the name for loading
@@ -174,7 +176,10 @@ def init_classifier(opts):
     opts.nb_of_classes = opts.LSUN_classes
     classifier = models.Classifier_2048_features(opts.nb_of_classes)
   else:
-    classifier = models.Classifier_2048_features(opts.nb_of_classes)
+    if opts.feature_size == 128:
+      classifier = models.Classifier_128_features(opts.nb_of_classes)
+    else:
+      classifier = models.Classifier_2048_features(opts.nb_of_classes)
   if opts.load_classifier:
     print('Loading pretrained classifier')
     classifier_state = torch.load(opts.root+'pretrained_models/batch_classifier_' + opts.dataset + '_' + str(opts.nb_of_classes) + '_classes.pth')
@@ -254,13 +259,13 @@ def load_dataset(opts):
     full_data = False
     if not opts.generate_data:
       try:     
-        full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
+        full_data = torch.load(opts.root + 'datasets/Synthetic/data_train_test_' + str(opts.nb_of_classes) + '_classes_' + str(opts.feature_size) + '_features_' + str(opts.class_size) + '_samples.pth')
       except IOError:
         print('No data with corresponding characteristics found, creating new dataset')
         pass
     if not full_data:
       full_data = synthetic_data_generation.sample_big_data(opts.feature_size, opts.nb_of_classes, opts.class_size)
-      torch.save(full_data, opts.root + 'datasets/Synthetic/data_train_test_'+str(opts.nb_of_classes)+'_classes_'+str(opts.class_size)+'_samples.pth')
+      torch.save(full_data, opts.root + 'datasets/Synthetic/data_train_test_' + str(opts.nb_of_classes) + '_classes_' + str(opts.feature_size) + '_features_' + str(opts.class_size)+'_samples.pth')
     train_dataset = TensorDataset(full_data['data_train'], full_data['labels_train'])
     test_dataset = TensorDataset(full_data['data_test'], full_data['labels_test'])
   return train_dataset, test_dataset

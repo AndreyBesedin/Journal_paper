@@ -6,14 +6,16 @@ import math
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
 
+from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
 from torchvision import datasets
 from torch.autograd import Variable
-
+from sklearn.metrics import confusion_matrix
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-
+import sup_functions
+import models
 os.makedirs('images', exist_ok=True)
 
 parser = argparse.ArgumentParser()
@@ -25,9 +27,6 @@ parser.add_argument('--b2', type=float, default=0.999, help='adam: decay of firs
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
 parser.add_argument('--latent_dim', type=int, default=100, help='dimensionality of the latent space')
 parser.add_argument('--nb_of_classes', type=int, default=10, help='number of classes for dataset')
-parser.add_argument('--img_size', type=int, default=32, help='size of each image dimension')
-parser.add_argument('--channels', type=int, default=1, help='number of image channels')
-parser.add_argument('--sample_interval', type=int, default=400, help='interval between image sampling')
 parser.add_argument('--feature_size', type=int, default=512, help='dimension of the input data')
 opts = parser.parse_args()
 print(opts)
@@ -79,7 +78,7 @@ class Discriminator(nn.Module):
 
   def forward(self, img, labels):
     # Concatenate label embedding and image to produce input
-    d_in = torch.cat(img, self.label_embedding(labels), -1)
+    d_in = torch.cat((img, self.label_embedding(labels)), -1)
     validity = self.model(d_in)
     return validity
 
@@ -103,23 +102,28 @@ tensor_test  = torch.load('./datasets/MNIST/testset.pth')
 train_dataset = TensorDataset(tensor_train[0], tensor_train[1])
 test_dataset = TensorDataset(tensor_test[0], tensor_test[1])
 dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=opts.batch_size, shuffle=True)
-
+classifier_dict = torch.load('pretrained_models/batch_classifier_MNIST_features_10_classes.pth')
+classifier = models.Classifier_MNIST_512_features(10)
+classifier.load_state_dict(classifier_dict)
+classifier = classifier.cuda()
 # Optimizers
-optimizer_G = torch.optim.Adam(generator.parameters(), lr=opts.lr, betas=(opts.b1, opts.b2))
+optimizer_G = torch.optim.Adam(generator.parameters(), lr=opts.lr*10, betas=(opts.b1, opts.b2))
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opts.lr, betas=(opts.b1, opts.b2))
 
 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if cuda else torch.LongTensor
 
-
 def sample_image(n_row):
     """Saves a grid of generated digits ranging from 0 to nb_of_classes"""
     # Sample noise
-    z = Variable(FloatTensor(np.random.normal(0, 1, (1000, opts.latent_dim))))
+    z = Variable(FloatTensor(np.random.normal(0, 1, (100, opts.latent_dim))))
     # Get labels ranging from 0 to nb_of_classes for n rows
     labels = np.array([num for _ in range(n_row) for num in range(n_row)])
     labels = Variable(LongTensor(labels))
+    generator.eval()
     gen_imgs = generator(z, labels)
+    generator.train()
+    return gen_imgs.data, labels
     #save_image(gen_imgs.data, 'images/%d.png' % batches_done, nrow=n_row, normalize=True)
 
 # ----------
@@ -171,10 +175,15 @@ for epoch in range(opts.n_epochs):
 
     d_loss.backward()
     optimizer_D.step()
-
-    print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, opts.n_epochs, i, len(dataloader),
+    if i%50==0:
+      print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, opts.n_epochs, i, len(dataloader),
                                                         d_loss.item(), g_loss.item()))
 
     batches_done = epoch * len(dataloader) + i
-        #if batches_done % opts.sample_interval == 0:
-            #sample_image(n_row=10, batches_done=batches_done)
+  
+  gen_samples = sample_image(n_row=10)
+  res = classifier(gen_samples[0]).max(1)[1]
+  cm = confusion_matrix(gen_samples[1], res)
+  print("Average accuracy: " + str(cm.diagonal().mean()/10))
+  print('Confusion matrix')
+  print(cm/10)
