@@ -21,17 +21,17 @@ os.makedirs('images', exist_ok=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
-parser.add_argument('--batch_size', type=int, default=64, help='size of the batches')
+parser.add_argument('--batch_size', type=int, default=1000, help='size of the batches')
 parser.add_argument('--lr', type=float, default=0.0002, help='adam: learning rate')
 parser.add_argument('--b1', type=float, default=0.5, help='adam: decay of first order momentum of gradient')
 parser.add_argument('--b2', type=float, default=0.999, help='adam: decay of first order momentum of gradient')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
 parser.add_argument('--latent_dim', type=int, default=100, help='dimensionality of the latent space')
-parser.add_argument('--nb_of_classes', type=int, default=10, help='number of classes for dataset')
+parser.add_argument('--nb_of_classes', type=int, default=500, help='number of classes for dataset')
 parser.add_argument('--img_size', type=int, default=32, help='size of each image dimension')
 parser.add_argument('--channels', type=int, default=1, help='number of image channels')
 parser.add_argument('--sample_interval', type=int, default=400, help='interval between image sampling')
-parser.add_argument('--feature_size', type=int, default=512, help='dimension of the input data')
+parser.add_argument('--feature_size', type=int, default=2048, help='dimension of the input data')
 opts = parser.parse_args()
 print(opts)
 
@@ -57,10 +57,10 @@ class Generator(nn.Module):
       return layers
 
     self.model = nn.Sequential(
-      *block(opts.latent_dim+opts.nb_of_classes, 128, normalize=False),
-      *block(128, 256),
-      *block(256, 512),
-      nn.Linear(512, opts.feature_size),
+      *block(opts.latent_dim+opts.nb_of_classes, 512, normalize=False),
+      *block(512, 512),
+      *block(512, 1024),
+      nn.Linear(1024, opts.feature_size),
       nn.Tanh()
     )
 
@@ -78,22 +78,21 @@ class Discriminator(nn.Module):
       """Returns layers of each discriminator block"""
       block = [   nn.Linear(in_features, out_features),
                   nn.LeakyReLU(0.2, inplace=True),
-                  nn.Dropout2d(0.25)]
+                  nn.Dropout(0.25)]
       if bn:
         block.append(nn.BatchNorm1d(out_features))
       return block
 
     self.linear_blocks = nn.Sequential(
-      *discriminator_block(opts.feature_size, 512, bn=False),
-      *discriminator_block(512, 256),
-      *discriminator_block(256, 256),
-      *discriminator_block(256, 128),
+      *discriminator_block(opts.feature_size, 1024, bn=False),
+      *discriminator_block(1024, 512),
+      *discriminator_block(512, 512),
     )
 
     # Output layers
-    self.adv_layer = nn.Sequential( nn.Linear(128, 1),
+    self.adv_layer = nn.Sequential( nn.Linear(512, 1),
                                    nn.Sigmoid())
-    self.aux_layer = nn.Sequential( nn.Linear(128, opts.nb_of_classes),
+    self.aux_layer = nn.Sequential( nn.Linear(512, opts.nb_of_classes),
                                     nn.Softmax())
 
   def forward(self, img):
@@ -121,15 +120,16 @@ generator.apply(weights_init_normal)
 discriminator.apply(weights_init_normal)
 
 # Configure data loader
-tensor_train = torch.load('./datasets/MNIST/trainset.pth')
-tensor_test  = torch.load('./datasets/MNIST/testset.pth')
-train_dataset = TensorDataset(tensor_train[0], tensor_train[1])
-test_dataset = TensorDataset(tensor_test[0], tensor_test[1])
+full_data = torch.load('./datasets/Synthetic/data_train_test_500_classes_2000_samples.pth')
+#tensor_train = torch.load('./datasets/MNIST/trainset.pth')
+#tensor_test  = torch.load('./datasets/MNIST/testset.pth')
+train_dataset = TensorDataset(full_data['data_train'], full_data['labels_train'])
+test_dataset = TensorDataset(full_data['data_test'], full_data['labels_test'])
 dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=opts.batch_size, shuffle=True)
-classifier_dict = torch.load('pretrained_models/batch_classifier_MNIST_features_10_classes.pth')
-classifier = models.Classifier_MNIST_512_features(10)
-classifier.load_state_dict(classifier_dict)
-classifier = classifier.cuda()
+#classifier_dict = torch.load('pretrained_models/batch_classifier_MNIST_features_10_classes.pth')
+#classifier = models.Classifier_MNIST_512_features(10)
+#classifier.load_state_dict(classifier_dict)
+#classifier = classifier.cuda()
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opts.lr, betas=(opts.b1, opts.b2))
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opts.lr, betas=(opts.b1, opts.b2))
@@ -152,7 +152,8 @@ def sample_image(n_row):
 # ----------
 #  Training
 # ----------
-
+ACGAN = {}
+max_acc = 0
 for epoch in range(opts.n_epochs):
   for i, (imgs, labels) in enumerate(dataloader):
     batch_size = imgs.shape[0]
@@ -211,19 +212,21 @@ for epoch in range(opts.n_epochs):
 
     d_loss.backward()
     optimizer_D.step()
-
+    if d_acc > max_acc:
+      max_acc = d_acc
+      torch.save({'discriminator': discriminator, 'generator': generator}, 'pretrained_models/ACGAN.pth')
     print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f, acc: %d%%] [G loss: %f]" % (epoch, opts.n_epochs, i, len(dataloader),
                                                         d_loss.item(), 100 * d_acc,
                                                         g_loss.item()))
     batches_done = epoch * len(dataloader) + i
  
-  print("Testing the quality of generated samples:")
-  test_epoch = 100
-  cm = [[0 for i in range(opts.nb_of_classes)] for j in range(opts.nb_of_classes)] 
-  for idx in range(test_epoch):
-    gen_samples = sample_image(n_row=10)
-    res = classifier(gen_samples[0]).max(1)[1]
-    cm += confusion_matrix(gen_samples[1], res)
-  print("Average accuracy: " + str(cm.diagonal().mean()*10/test_epoch))
-  print('Confusion matrix')
-  print(cm*10/test_epoch)
+#  print("Testing the quality of generated samples:")
+#  test_epoch = 100
+#  cm = [[0 for i in range(opts.nb_of_classes)] for j in range(opts.nb_of_classes)] 
+#  for idx in range(test_epoch):
+#    gen_samples = sample_image(n_row=10)
+#    res = classifier(gen_samples[0]).max(1)[1]
+#    cm += confusion_matrix(gen_samples[1], res)
+#  print("Average accuracy: " + str(cm.diagonal().mean()*10/test_epoch))
+#  print('Confusion matrix')
+#  print(cm*10/test_epoch)
