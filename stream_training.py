@@ -281,7 +281,7 @@ else:
 use_gen_models = False
 if not use_gen_models:
   gen_model = Identity()
-  generative_optimizer_classification = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta1, betas=(0.9, 0.999), weight_decay=1e-5)
+#  generative_optimizer_classification = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta1, betas=(0.9, 0.999), weight_decay=1e-5)
   
 original_trainset, original_testset = sup_functions.load_dataset(opts)
 test_loader = data_utils.DataLoader(original_testset, batch_size=opts.batch_size, shuffle = False)  
@@ -377,25 +377,26 @@ for stream_intervals in range(opts.max_stream_intervals):
     train_loader = data_utils.DataLoader(stream_trainset, batch_size=opts.batch_size, shuffle = True)
     
     print('Training generative model')
-    generative_optimizer_classification.zero_grad()
-    classification_optimizer.zero_grad()
     
-    for idx, (train_X, train_Y) in enumerate(train_loader):
-      inputs = train_X.float()
-      if opts.cuda:
-        inputs = inputs.cuda()
-      # ===================forward=====================
-      outputs = gen_model(inputs)
-      orig_classes = new_classifier(inputs)
-      orig_classes = orig_classes.data
-      classification_reconstructed = new_classifier(outputs)
-      loss_gen = generative_criterion_classification(classification_reconstructed, orig_classes)
+    classification_optimizer.zero_grad()
+    if use_gen_models:
+      generative_optimizer_classification.zero_grad()
+      for idx, (train_X, train_Y) in enumerate(train_loader):
+        inputs = train_X.float()
+        if opts.cuda:
+          inputs = inputs.cuda()
+        # ===================forward=====================
+        outputs = gen_model(inputs)
+        orig_classes = new_classifier(inputs)
+        orig_classes = orig_classes.data
+        classification_reconstructed = new_classifier(outputs)
+        loss_gen = generative_criterion_classification(classification_reconstructed, orig_classes)
 
       #loss_gen = generative_criterion_classification(classifier(gen_model(inputs)), orig_classes)
-      loss_gen.backward()
-      generative_optimizer_classification.step()
-      generative_optimizer_classification.zero_grad()
-      classification_optimizer.zero_grad()
+        loss_gen.backward()
+        generative_optimizer_classification.step()
+        generative_optimizer_classification.zero_grad()
+        classification_optimizer.zero_grad()
       #if idx%100==0:
       #  print('epoch [{}/{}], generators loss: {:.4f}'
       #    .format(interval, opts.niter,  loss_gen.item()))
