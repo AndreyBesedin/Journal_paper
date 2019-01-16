@@ -310,7 +310,7 @@ print('Finished reconstructing historical data')
 #generative_optimizer_classification = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta1*0.05, betas=(0.9, 0.999), weight_decay=1e-5)
 #generative_criterion_classification = nn.MSELoss()
 
-#classification_optimizer = optim.Adam(classifier.parameters(), lr=opts.lr*0.1, betas=(opts.beta1, 0.999), weight_decay=1e-5)
+classification_optimizer = optim.Adam(new_classifier.parameters(), lr=opts.lr*0.1, betas=(opts.beta1, 0.999), weight_decay=1e-5)
 #classification_criterion = nn.CrossEntropyLoss()
 
 #generative_criterion_classification = generative_criterion_classification.cuda()
