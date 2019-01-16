@@ -56,6 +56,9 @@ parser.add_argument('--fake_to_real_ratio', default=40, type=int, help='size of 
 parser.add_argument('--max_stream_classes', default=3, type=int, help='Max number of simultaneous classes in the stream')
 parser.add_argument('--max_interval_duration', default=10, type=int, help='Max duration of each interval environment')
 parser.add_argument('--max_stream_intervals', default=500, type=int, help='Max duration of each interval environment')
+parser.add_argument('--pretrain', action='store_true', help='if true, runs pretraining step otherwise loads pretrained models')
+parser.add_argument('--use_gen_models', action='store_true', help='if false, uses identity instead of autoencoder')
+
 opts = parser.parse_args()
 opts.fake_storage_size = opts.stream_batch_size
 
@@ -134,8 +137,8 @@ if opts.cuda:
 #-------------------------------------------------------------------------------------------------------------------------------------
 # Training the original classifier on a half of all the classes on original data 
 #-------------------------------------------------------------------------------------------------------------------------------------
-pretrain = False
-if pretrain:
+
+if opts.pretrain:
   accuracies = {}
   best_models = {}
   accuracies['original_classification'] = []
@@ -278,8 +281,8 @@ else:
 #-------------------------------------------------------------------------------------------------------------------------------------
 # 
 
-use_gen_models = False
-if not use_gen_models:
+opts.use_gen_models = False
+if not opts.use_gen_models:
   gen_model = Identity()
 #  generative_optimizer_classification = torch.optim.Adam(gen_model.parameters(), lr=opts.lr*opts.betta1, betas=(0.9, 0.999), weight_decay=1e-5)
   
