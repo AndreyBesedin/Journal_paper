@@ -382,7 +382,7 @@ for stream_intervals in range(opts.max_stream_intervals):
     print('Training generative model')
     
     classification_optimizer.zero_grad()
-    if use_gen_models:
+    if opts.use_gen_models:
       generative_optimizer_classification.zero_grad()
       for idx, (train_X, train_Y) in enumerate(train_loader):
         inputs = train_X.float()
