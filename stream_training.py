@@ -59,6 +59,12 @@ parser.add_argument('--max_stream_intervals', default=500, type=int, help='Max d
 opts = parser.parse_args()
 opts.fake_storage_size = opts.stream_batch_size
 
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+    def forward(self, x):
+        return x
+      
 print('Loading data')
 if opts.cuda:
   torch.cuda.set_device(opts.cuda_device)
@@ -125,6 +131,9 @@ if opts.cuda:
 
 #print('Classification accuracy on the original testset: ' + str(sup_functions.test_classifier(classifier, test_loader)))
 
+#-------------------------------------------------------------------------------------------------------------------------------------
+# Training the original classifier on a half of all the classes on original data 
+#-------------------------------------------------------------------------------------------------------------------------------------
 accuracies = {}
 best_models = {}
 accuracies['original_classification'] = []
@@ -160,7 +169,9 @@ for epoch in range(opts.niter_classification):  # loop over the dataset multiple
     torch.save(best_models, opts.root + 'pretrained_models/pre_stream_training_' + name_to_save)
   
 
-#TODO add score computation as in the paper
+#-------------------------------------------------------------------------------------------------------------------------------------
+# Training an autencoder using pretrained classifier for the loss computation
+#-------------------------------------------------------------------------------------------------------------------------------------
 print('Training generative model')
 max_test_acc = 0
 accuracies['generative_model_progress'] = []
@@ -206,13 +217,19 @@ for epoch in range(opts.niter_generation):  # loop over the dataset multiple tim
     max_test_acc = acc
     best_models['generative_model'] = gen_model
     torch.save(best_models, opts.root + 'pretrained_models/pre_stream_training_' + name_to_save)
-      
+
+
+#-------------------------------------------------------------------------------------------------------------------------------------
+# Training a new classifier on generated data only
+#-------------------------------------------------------------------------------------------------------------------------------------
+
 accuracies['classification_on_reconstructed'] = []
 print('Retraining the classifier')
 
 new_classifier = sup_functions.init_classifier(opts)
 classification_optimizer = optim.Adam(new_classifier.parameters(), lr=opts.lr, betas=(opts.beta1, 0.999), weight_decay=1e-5)
 max_test_acc = 0
+
 for epoch in range(opts.niter_classification):  # loop over the dataset multiple times
   print('Training epoch ' + str(epoch))
   r=torch.randperm(indices_train.shape[0])
@@ -243,9 +260,14 @@ for epoch in range(opts.niter_classification):  # loop over the dataset multiple
 
 print('Finished Training')
 
-
-
-
+#-------------------------------------------------------------------------------------------------------------------------------------
+# Stream training, adding new classes etc
+#-------------------------------------------------------------------------------------------------------------------------------------
+# 
+use_gen_models = False
+if not use_gen_models:
+  gen_model = Identity()
+  
 original_trainset, original_testset = sup_functions.load_dataset(opts)
 test_loader = data_utils.DataLoader(original_testset, batch_size=opts.batch_size, shuffle = False)  
 
@@ -262,7 +284,7 @@ elif opts.dataset == 'Synthetic':
 #gen_model = sup_functions.init_generative_model(opts)
 #classifier = sup_functions.init_classifier(opts)
 accuracies = []
-acc = sup_functions.test_classifier_on_generator(classifier, gen_model, test_loader)
+acc = sup_functions.test_classifier_on_generator(new_classifier, gen_model, test_loader)
 print('Accuracy on the full testset before training on stream: ' + str(acc))
 accuracies.append(acc)
 max_test_acc = 0
@@ -349,9 +371,9 @@ for stream_intervals in range(opts.max_stream_intervals):
         inputs = inputs.cuda()
       # ===================forward=====================
       outputs = gen_model(inputs)
-      orig_classes = classifier(inputs)
+      orig_classes = new_classifier(inputs)
       orig_classes = orig_classes.data
-      classification_reconstructed = classifier(outputs)
+      classification_reconstructed = new_classifier(outputs)
       loss_gen = generative_criterion_classification(classification_reconstructed, orig_classes)
 
       #loss_gen = generative_criterion_classification(classifier(gen_model(inputs)), orig_classes)
@@ -373,7 +395,7 @@ for stream_intervals in range(opts.max_stream_intervals):
     for idx, (train_X, train_Y) in enumerate(train_loader):
       inputs = gen_model(train_X.float().cuda())
       labels = train_Y.cuda()
-      orig_classes = classifier(inputs)
+      orig_classes = new_classifier(inputs)
       orig_classes.require_grad = True
       classification_loss = classification_criterion(orig_classes, labels.long())
       classification_loss.backward()
@@ -396,7 +418,7 @@ for stream_intervals in range(opts.max_stream_intervals):
   torch.save(res_to_save, opts.root+'results/stream_training_accuracy_' + name_to_save)
   if acc > max_test_acc:
     max_test_acc = acc
-    best_models['classifier'] = classifier
+    best_models['classifier'] = new_classifier
     best_models['generative_model'] = gen_model
     torch.save(best_models, opts.root + 'pretrained_models/stream_training_' + name_to_save)  
 
