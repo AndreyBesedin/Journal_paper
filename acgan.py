@@ -120,11 +120,21 @@ generator.apply(weights_init_normal)
 discriminator.apply(weights_init_normal)
 
 # Configure data loader
-full_data = torch.load('./datasets/Synthetic/data_train_test_500_classes_2000_samples.pth')
+# Synthetic dataset:
+#full_data = torch.load('./datasets/Synthetic/data_train_test_500_classes_2000_samples.pth')
 #tensor_train = torch.load('./datasets/MNIST/trainset.pth')
 #tensor_test  = torch.load('./datasets/MNIST/testset.pth')
-train_dataset = TensorDataset(full_data['data_train'], full_data['labels_train'])
-test_dataset = TensorDataset(full_data['data_test'], full_data['labels_test'])
+#train_dataset = TensorDataset(full_data['data_train'], full_data['labels_train'])
+#test_dataset = TensorDataset(full_data['data_test'], full_data['labels_test'])
+
+#LSUN
+tensor_train = torch.load('./datasets/LSUN/trainset.pth')
+#tensor_test  = torch.load(opts.root + 'datasets/LSUN/testset.pth')
+#train_dataset = TensorDataset2048(tensor_train[0], tensor_train[1], transform=img_transform)
+#test_dataset = TensorDataset2048(tensor_test[0], tensor_test[1], transform=img_transform)
+train_dataset = TensorDataset(tensor_train[0] - 0.46, tensor_train[1])
+#test_dataset = TensorDataset(tensor_test[0] - 0.46, tensor_test[1])
+
 dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=opts.batch_size, shuffle=True)
 #classifier_dict = torch.load('pretrained_models/batch_classifier_MNIST_features_10_classes.pth')
 #classifier = models.Classifier_MNIST_512_features(10)
