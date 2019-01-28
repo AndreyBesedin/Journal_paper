@@ -28,8 +28,8 @@ torch.cuda.set_device(1)
 nb_of_classes = 500
 feature_size = 128
 code_size = 32
-fake_batches = 20
-real_batches = 5
+fake_batches = 10
+real_batches = 3
 real_buffer_size = 3
 real_buffer = Data_Buffer(real_buffer_size, opts['batch_size'])
 name_to_save = './results/res_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage.pth'.format(fake_batches, real_batches, real_buffer_size)
@@ -154,7 +154,7 @@ acc_real = test_classifier(classifier, test_loader)
 acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
 results = {}
 results['accuracies'] = []
-results['added_classes'] = []
+results['known_classes'] = []
 print('Real test accuracy on known classes prior to stream training: {:.8f}'.format(acc_real))    
 print('Reconstructed test accuracy on known classes prior to stream training: {:.8f}'.format(acc_fake))  
 results['accuracies'].append(acc_real)
@@ -190,8 +190,7 @@ for interval in range(stream_duration):
       known_classes.append(stream_class)
   if added_new_classes>0:
     print('Added {} new classes, reevaluating the classifiers performance'.format(added_new_classes))
-    print('Currently known classes:')
-    print(known_classes)
+    print('Currently known {} classes'.format(len(known_classes)))
     indices_test = get_indices_for_classes(testset, known_classes)
     test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler(indices_test))
     acc_real = test_classifier(classifier, test_loader)
@@ -262,11 +261,9 @@ for interval in range(stream_duration):
   print('Reconstructed test accuracy after {} intervals: {:.8f}'.format(interval+1, acc_fake))   
   results['accuracies'].append(acc_real)
   results['known_classes'].append(len(known_classes))
-  torch.save(results, './results/')
+  torch.save(results, name_to_save)
   
   #if acc > max_accuracy:
     #max_accuracy = acc
     #torch.save(classifier.state_dict(), './pretrained_models/classifier_6_classes_mixed_data.pth')
-      
-    
-    
+
