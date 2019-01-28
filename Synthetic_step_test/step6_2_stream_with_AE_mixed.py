@@ -171,16 +171,20 @@ for interval in range(stream_duration):
   known_classes = [int(a) for a in historical_buffer.dbuffer.keys()]
   
   # We will make an extra testing step with completed testset if a new class is coming from the stream
+  added_new_classes = 0
   for stream_class in stream_classes:
     if stream_class not in known_classes:
+      added_new_classes += 1
       print('ADDED A NEW CLASS {}'.format(stream_class))
       known_classes.append(stream_class)
-      indices_test = get_indices_for_classes(testset, known_classes)
-      test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler(indices_test))
-      acc_real = test_classifier(classifier, test_loader)
-      acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
-      print('Real test accuracy after {} intervals with a new class: {:.8f}'.format(interval+1, acc_real))    
-      print('Reconstructed test accuracy after {} epochs with a new class: {:.8f}'.format(interval+1, acc_fake))     
+  if added_new_classes>0:
+    print('Added {} new classes, reevaluating the classifiers performance'.format(added_new_classes))
+    indices_test = get_indices_for_classes(testset, known_classes)
+    test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler(indices_test))
+    acc_real = test_classifier(classifier, test_loader)
+    acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
+    print('Real test accuracy after {} intervals with a new class: {:.8f}'.format(interval+1, acc_real))    
+    print('Reconstructed test accuracy after {} epochs with a new class: {:.8f}'.format(interval+1, acc_fake))     
 
   
   for idx_stream, (X_stream, Y_stream) in enumerate(stream_loader):
