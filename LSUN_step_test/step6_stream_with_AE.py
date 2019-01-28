@@ -1,7 +1,6 @@
 
 """
-Working version of data stream classification training on MNIST 
-TODO Rethink feature extraction for MNIST or do tests directly on original data unfolded into vectors 
+Working version of data stream classification training on LSUN 
 """
 import copy
 import numpy as np
@@ -18,6 +17,9 @@ from sklearn.metrics import confusion_matrix
 
 from data_buffer import Data_Buffer
 
+nb_of_classes = 30
+feature_size = 2048
+code_size = 32
 opts = {
   'batch_size': 100,
   'learning_rate': 0.001,
@@ -25,40 +27,49 @@ opts = {
   'betta2': 1, # Influence coefficient for reconstruction loss in AE
   }
 
-class Classifier_MNIST_512_features(nn.Module):
+class Classifier_2048_features(nn.Module):
   def __init__(self, nb_classes):
-    super(Classifier_MNIST_512_features, self).__init__()
-    self.fc1 = nn.Linear(512, 256)
-    self.fc2 = nn.Linear(256, 128)
-    self.fc3 = nn.Linear(128, nb_classes)
+    super(Classifier_2048_features, self).__init__()
+    self.fc1 = nn.Linear(2048, 1024)
+    self.fc2 = nn.Linear(1024, 256)
+    self.fc3 = nn.Linear(256, 128)
+    self.fc4 = nn.Linear(128, nb_classes)
 
   def forward(self, x):
     x = F.relu(self.fc1(x))
     x = F.relu(self.fc2(x))
-    x = self.fc3(x)
-    #x = F.softmax(self.fc3(x))
+    x = F.relu(self.fc3(x))
+    x = self.fc4(x)
     return x
   
-class autoencoder_MNIST_512_features(nn.Module):
+  
+class autoencoder_2048(nn.Module):
   def __init__(self, code_size):
     def linear_block(in_, out_):
+#      return nn.Sequential(nn.Linear(in_, out_), nn.ReLU(True))
       return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
-    super(autoencoder_MNIST_512_features, self).__init__()
+    super(autoencoder_2048, self).__init__()
     self.encoder = nn.Sequential(
+      linear_block(2048, 512),
+#     linear_block(3072, 1024),
+#      linear_block(1024, 512),
       linear_block(512, 128),
-      linear_block(128, 64),
-      nn.Linear(64, code_size),
+#      linear_block(128, 64),
+      nn.Linear(128, code_size),
     )
     self.decoder = nn.Sequential(
-      linear_block(code_size, 64),
-      linear_block(64, 128),
-      nn.Linear(128, 512),
+      linear_block(code_size, 128),
+#      linear_block(64, 128),
+      linear_block(128, 512),
+#      linear_block(512, 1024),
+      nn.Linear(512, 2048),
       nn.Tanh()
     )
   def forward(self, x):
     x = self.encoder(x)
     x = self.decoder(x)
     return x
+
 
 def test_classifier(classif, data_loader):
   total = 0
@@ -97,8 +108,8 @@ def get_indices_for_classes(data, data_classes):
   return indices[torch.randperm(len(indices))]
 
 # ----------------------------------------- LOADING THE ORIGINAL DATASETS ------------------------------------------------------
-full_trainset = torch.load('./data/trainset.pth')
-full_testset = torch.load('./data/testset.pth')
+full_trainset = torch.load('./data/trainset_no_relu.pth')
+full_testset = torch.load('./data/testset_no_relu.pth')
 
 trainset = TensorDataset(full_trainset[0], full_trainset[1])
 testset = TensorDataset(full_testset[0], full_testset[1])
@@ -106,16 +117,16 @@ testset = TensorDataset(full_testset[0], full_testset[1])
 
 # ----------------------------------------- LOADING PRETRAINED MODELS ----------------------------------------------------------
 # Initializing classification model
-classifier = Classifier_MNIST_512_features(10)
-class_dict = torch.load('./pretrained_models/classifier_5_classes_reconstructed_data.pth')
+classifier = Classifier_2048_features(nb_of_classes)
+class_dict = torch.load('./pretrained_models/classifier_15_classes_reconstructed_data.pth')
 classifier.load_state_dict(class_dict)
 classification_optimizer = optim.Adam(classifier.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
 classification_criterion = nn.CrossEntropyLoss()
 classifier.cuda()
 classification_criterion.cuda()
 
-gen_model = autoencoder_MNIST_512_features(32)
-gen_dict = torch.load('./pretrained_models/AE_5_classes_32_code_size.pth')
+gen_model = autoencoder_2048(code_size)
+gen_dict = torch.load('./pretrained_models/AE_15_classes_32_code_size.pth')
 gen_model.load_state_dict(gen_dict)
 gen_model.cuda()
 
@@ -126,9 +137,9 @@ generative_criterion_rec = nn.MSELoss()
 generative_criterion_rec.cuda()
 
 # ---------------------------------- FILLING THE BUFFERS WITH THE HISTORICAL DATA ----------------------------------------------
-prev_classes = [0, 1, 2, 3, 4]
-historical_buffer = Data_Buffer(60, 100)
-real_buffer = Data_Buffer(1, 100)
+prev_classes = list(range(15))
+historical_buffer = Data_Buffer(60, opts['batch_size'])
+real_buffer = Data_Buffer(1, opts['batch_size'])
 for idx_class in prev_classes:
   indices_prev = get_indices_for_classes(trainset, [idx_class])
   prev_loader = DataLoader(trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(indices_prev),  drop_last=True)
@@ -137,21 +148,23 @@ for idx_class in prev_classes:
     real_buffer.add_batch(batch.cuda(), idx_class)
 
 max_accuracy = 0
-fake_batches = 10
-real_batches = 1
+fake_batches = 20
+real_batches = 2
 known_classes = [int(a) for a in historical_buffer.dbuffer.keys()]
 indices_test = get_indices_for_classes(testset, known_classes)
 test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler(indices_test))
+
 acc_real = test_classifier(classifier, test_loader)
 acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
 print('Real test accuracy on known classes prior to stream training: {:.8f}'.format(acc_real))    
 print('Reconstructed test accuracy on known classes prior to stream training: {:.8f}'.format(acc_fake))  
 
 # --------------------------------------------------- STREAM TRAINING ----------------------------------------------------------
-stream_duration = 100
+stream_duration = 1000
 for interval in range(stream_duration):
+  #TODO multiclass tests
   gen_model_old = copy.deepcopy(gen_model) 
-  stream_class = [np.random.randint(0, 10)]
+  stream_class = [np.random.randint(0, nb_of_classes)]
   stream_indices = get_indices_for_classes(trainset, stream_class)
   
   # Preloading the historical data/stored codes 
@@ -181,17 +194,19 @@ for interval in range(stream_duration):
     mixed_batch_data.append(X_stream.cuda())
     mixed_batch_labels.append(Y_stream.long().cuda())
     for idx_fake, (X_fake, Y_fake) in enumerate(fake_loader):
+      if idx_fake > fake_batches - 1:
+        break
       mixed_batch_data.append(gen_model_old.decoder(X_fake.cuda()).data)
       mixed_batch_labels.append(Y_fake.long().cuda())
-      if idx_fake==fake_batches-1:
+    for idx_real, (X_real, Y_real) in enumerate(real_loader):
+      if idx_real > real_batches - 1:
         break
-    for X_real, Y_real in real_loader:
       mixed_batch_data.append(X_real.cuda())
       mixed_batch_labels.append(Y_real.long().cuda())
-      break
+
     nb_of_batches = len(mixed_batch_labels)
     #print('Batches forming a big one: {}'.format(nb_of_batches))
-    inputs = torch.stack(mixed_batch_data).reshape(opts['batch_size']*nb_of_batches, 512)
+    inputs = torch.stack(mixed_batch_data).reshape(opts['batch_size']*nb_of_batches, feature_size)
     labels = torch.stack(mixed_batch_labels).reshape(opts['batch_size']*nb_of_batches)
     
     # Updating the classifier

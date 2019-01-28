@@ -9,9 +9,9 @@ from torch.utils.data.sampler import SubsetRandomSampler
 
 nb_of_classes = 30
 code_size = 32
-training_epochs = 100
+training_epochs = 30
 opts = {
-  'batch_size': 500,
+  'batch_size': 1000,
   'learning_rate': 0.001,
   'betta1': 1e-2, # Influence coefficient for classification loss in AE default 1e-2
   'betta2': 1, # Influence coefficient for reconstruction loss in AE
@@ -40,19 +40,19 @@ class autoencoder_2048(nn.Module):
       return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
     super(autoencoder_2048, self).__init__()
     self.encoder = nn.Sequential(
-      linear_block(2048, 1024),
+      linear_block(2048, 512),
 #     linear_block(3072, 1024),
-      linear_block(1024, 512),
+#      linear_block(1024, 512),
       linear_block(512, 128),
-      linear_block(128, 64),
-      nn.Linear(64, code_size),
+#      linear_block(128, 64),
+      nn.Linear(128, code_size),
     )
     self.decoder = nn.Sequential(
-      linear_block(code_size, 64),
-      linear_block(64, 128),
+      linear_block(code_size, 128),
+#      linear_block(64, 128),
       linear_block(128, 512),
-      linear_block(512, 1024),
-      nn.Linear(1024, 2048),
+#      linear_block(512, 1024),
+      nn.Linear(512, 2048),
       nn.Tanh()
     )
   def forward(self, x):
@@ -94,7 +94,7 @@ def get_indices_for_classes(data, data_classes):
   return indices[torch.randperm(len(indices))]
 
 # Loading the datasets
-full_trainset = torch.load('./data/testset_no_relu.pth')
+full_trainset = torch.load('./data/trainset_no_relu.pth')
 full_testset = torch.load('./data/testset_no_relu.pth')
 
 trainset = TensorDataset(full_trainset[0], full_trainset[1])

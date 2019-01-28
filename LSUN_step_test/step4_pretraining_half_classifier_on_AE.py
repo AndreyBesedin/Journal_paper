@@ -10,8 +10,9 @@ from torch.utils.data.sampler import SubsetRandomSampler
 nb_of_classes = 30
 code_size = 32
 training_epochs = 100
+
 opts = {
-  'batch_size': 500,
+  'batch_size': 1000,
   'learning_rate': 0.001,
   'betta1': 1e-2, # Influence coefficient for classification loss in AE default 1e-2
   'betta2': 1, # Influence coefficient for reconstruction loss in AE
@@ -40,25 +41,26 @@ class autoencoder_2048(nn.Module):
       return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
     super(autoencoder_2048, self).__init__()
     self.encoder = nn.Sequential(
-      linear_block(2048, 1024),
+      linear_block(2048, 512),
 #     linear_block(3072, 1024),
-      linear_block(1024, 512),
+#      linear_block(1024, 512),
       linear_block(512, 128),
-      linear_block(128, 64),
-      nn.Linear(64, code_size),
+#      linear_block(128, 64),
+      nn.Linear(128, code_size),
     )
     self.decoder = nn.Sequential(
-      linear_block(code_size, 64),
-      linear_block(64, 128),
+      linear_block(code_size, 128),
+#      linear_block(64, 128),
       linear_block(128, 512),
-      linear_block(512, 1024),
-      nn.Linear(1024, 2048),
+#      linear_block(512, 1024),
+      nn.Linear(512, 2048),
       nn.Tanh()
     )
   def forward(self, x):
     x = self.encoder(x)
     x = self.decoder(x)
     return x
+
 
 def test_classifier(classif, data_loader):
   total = 0
@@ -92,7 +94,7 @@ def get_indices_for_classes(data, data_classes):
   return indices[torch.randperm(len(indices))]
 
 # Loading the datasets
-full_trainset = torch.load('./data/testset_no_relu.pth')
+full_trainset = torch.load('./data/trainset_no_relu.pth')
 full_testset = torch.load('./data/testset_no_relu.pth')
 
 trainset = TensorDataset(full_trainset[0], full_trainset[1])
@@ -108,12 +110,12 @@ test_loader = DataLoader(testset, batch_size=opts['batch_size'], sampler = Subse
 
 # Initializing classification model
 classifier = Classifier_2048_features(nb_of_classes)
-classification_optimizer = optim.Adam(classifier.parameters(), lr=opts['learning_rate'], betas=(0.5, 0.999), weight_decay=1e-5)
+classification_optimizer = optim.Adam(classifier.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
 classification_criterion = nn.CrossEntropyLoss()
 classifier.cuda()
 classification_criterion.cuda()
 
-gen_model = autoencoder_MNIST_512_features(32)
+gen_model = autoencoder_2048(code_size)
 gen_dict = torch.load('./pretrained_models/AE_15_classes_32_code_size.pth')
 gen_model.load_state_dict(gen_dict)
 gen_model.cuda()
@@ -122,22 +124,28 @@ acc = test_classifier(classifier, test_loader)
 print('Classification accuracy prior to training: {:.4f}'.format(acc))
 
 max_accuracy = 0
-for epoch in range(10):
+for epoch in range(training_epochs):
   for idx, (X, Y) in enumerate(train_loader):
     inputs = gen_model(X.cuda())
+    inputs = inputs.detach()
     labels = Y.long().cuda()
-    outputs = classifier(inputs.data)
+    outputs = classifier(inputs)
     classification_loss = classification_criterion(outputs, labels)
     classification_loss.backward()
     classification_optimizer.step()
     classification_optimizer.zero_grad()
     if idx%50==0:
-      print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, 10,  classification_loss.item()))
-  acc = test_classifier(classifier, test_loader)
-  print('Test accuracy after {} epochs: {:.8f}'.format(epoch+1, acc))    
+      print('epoch [{}/{}], classification loss: {:.4f}'.format(epoch, training_epochs,  classification_loss.item()))
+  
+  
+  acc_orig = test_classifier(classifier, test_loader)
+  acc = test_classifier_on_generator(classifier, gen_model, test_loader)
+  
+  print('Test accuracy after {} epochs: {:.8f}'.format(epoch+1, acc_orig))    
+  print('Test accuracy on reconstructed testset after {} epochs: {:.8f}'.format(epoch+1, acc))   
   if acc > max_accuracy:
     max_accuracy = acc
-    torch.save(classifier.state_dict(), './pretrained_models/classifier_5_classes_reconstructed_data.pth')
+    torch.save(classifier.state_dict(), './pretrained_models/classifier_15_classes_reconstructed_data.pth')
       
     
     
