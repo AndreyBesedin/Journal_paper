@@ -16,16 +16,21 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn.metrics import confusion_matrix
 
 from data_buffer import Data_Buffer
-torch.cuda.set_device(0)
-nb_of_classes = 500
-feature_size = 128
-code_size = 32
+
 opts = {
   'batch_size': 100,
   'learning_rate': 0.001,
   'betta1': 1e-2, # Influence coefficient for classification loss in AE default 1e-2
   'betta2': 1, # Influence coefficient for reconstruction loss in AE
   }
+
+torch.cuda.set_device(1)
+nb_of_classes = 500
+feature_size = 128
+code_size = 32
+fake_batches = 20
+real_batches = 5
+real_buffer = Data_Buffer(3, opts['batch_size'])
 
 class Classifier_128_features(nn.Module):
   def __init__(self, nb_classes):
@@ -130,7 +135,6 @@ generative_criterion_rec.cuda()
 # ---------------------------------- FILLING THE BUFFERS WITH THE HISTORICAL DATA ----------------------------------------------
 prev_classes = list(range(250))
 historical_buffer = Data_Buffer(60, opts['batch_size'])
-real_buffer = Data_Buffer(6, opts['batch_size'])
 for idx_class in prev_classes:
   indices_prev = get_indices_for_classes(trainset, [idx_class])
   prev_loader = DataLoader(trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(indices_prev),  drop_last=True)
@@ -139,8 +143,7 @@ for idx_class in prev_classes:
     real_buffer.add_batch(batch.cuda(), idx_class)
 
 max_accuracy = 0
-fake_batches = 20
-real_batches = 10
+
 known_classes = [int(a) for a in historical_buffer.dbuffer.keys()]
 indices_test = get_indices_for_classes(testset, known_classes)
 test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler(indices_test))
@@ -179,12 +182,14 @@ for interval in range(stream_duration):
       known_classes.append(stream_class)
   if added_new_classes>0:
     print('Added {} new classes, reevaluating the classifiers performance'.format(added_new_classes))
+    print('Currently known classes:')
+    print(known_classes)
     indices_test = get_indices_for_classes(testset, known_classes)
     test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler(indices_test))
     acc_real = test_classifier(classifier, test_loader)
     acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
-    print('Real test accuracy with new classes: {:.8f}'.format(interval+1, acc_real))    
-    print('Reconstructed test accuracy with new classes: {:.8f}'.format(interval+1, acc_fake))     
+    print('Real test accuracy with new classes: {:.8f}'.format(acc_real))    
+    print('Reconstructed test accuracy with new classes: {:.8f}'.format(acc_fake))     
 
   
   for idx_stream, (X_stream, Y_stream) in enumerate(stream_loader):
