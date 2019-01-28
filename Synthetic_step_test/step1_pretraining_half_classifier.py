@@ -125,6 +125,6 @@ for epoch in range(training_epochs):
   print('Test accuracy after {} epochs: {:.8f}'.format(epoch+1, acc))    
   if acc > max_accuracy:
     max_accuracy = acc
-    torch.save(classifier.state_dict(), './pretrained_models/classifier_15_classes_original_data.pth')
+    torch.save(classifier.state_dict(), './pretrained_models/classifier_250_classes_original_data.pth')
     
     

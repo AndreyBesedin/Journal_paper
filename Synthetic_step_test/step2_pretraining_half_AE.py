@@ -15,7 +15,7 @@ opts = {
   'batch_size': 1000,
   'learning_rate': 0.001,
   'betta1': 1e-2, # Influence coefficient for classification loss in AE default 1e-2
-  'betta2': 0, # Influence coefficient for reconstruction loss in AE
+  'betta2': 1, # Influence coefficient for reconstruction loss in AE
   }
 
 class Classifier_128_features(nn.Module):
