@@ -24,7 +24,7 @@ opts = {
   'batch_size': 100,
   'learning_rate': 0.001,
   'betta1': 1e-2, # Influence coefficient for classification loss in AE default 1e-2
-  'betta2': 0, # Influence coefficient for reconstruction loss in AE
+  'betta2': 1, # Influence coefficient for reconstruction loss in AE
   }
 
 class Classifier_128_features(nn.Module):
@@ -139,8 +139,8 @@ for idx_class in prev_classes:
     real_buffer.add_batch(batch.cuda(), idx_class)
 
 max_accuracy = 0
-fake_batches = 0
-real_batches = 10
+fake_batches = 20
+real_batches = 2
 known_classes = [int(a) for a in historical_buffer.dbuffer.keys()]
 indices_test = get_indices_for_classes(testset, known_classes)
 test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler(indices_test))
