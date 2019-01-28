@@ -231,6 +231,11 @@ for interval in range(stream_duration):
     classification_optimizer.zero_grad()
     if idx_stream%100==0:
       print('interval [{}/{}], classification loss: {:.4f}'.format(interval, stream_duration,  classification_loss.item()))
+      acc_real = test_classifier(classifier, test_loader)
+      acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
+      results['accuracies'].append(acc_real)
+      results['known_classes'].append(len(known_classes))
+      torch.save(results, name_to_save)
     # Updating the auto-encoder
     
     reconstructions = gen_model(inputs)
