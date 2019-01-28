@@ -130,7 +130,7 @@ generative_criterion_rec.cuda()
 # ---------------------------------- FILLING THE BUFFERS WITH THE HISTORICAL DATA ----------------------------------------------
 prev_classes = list(range(250))
 historical_buffer = Data_Buffer(60, opts['batch_size'])
-real_buffer = Data_Buffer(1, opts['batch_size'])
+real_buffer = Data_Buffer(10, opts['batch_size'])
 for idx_class in prev_classes:
   indices_prev = get_indices_for_classes(trainset, [idx_class])
   prev_loader = DataLoader(trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(indices_prev),  drop_last=True)
@@ -140,7 +140,7 @@ for idx_class in prev_classes:
 
 max_accuracy = 0
 fake_batches = 20
-real_batches = 2
+real_batches = 20
 known_classes = [int(a) for a in historical_buffer.dbuffer.keys()]
 indices_test = get_indices_for_classes(testset, known_classes)
 test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler(indices_test))
