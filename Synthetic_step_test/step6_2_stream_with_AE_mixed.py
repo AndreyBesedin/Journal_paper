@@ -30,7 +30,9 @@ feature_size = 128
 code_size = 32
 fake_batches = 20
 real_batches = 5
-real_buffer = Data_Buffer(3, opts['batch_size'])
+real_buffer_size = 3
+real_buffer = Data_Buffer(real_buffer_size, opts['batch_size'])
+name_to_save = './results/res_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage.pth'.format(fake_batches, real_batches, real_buffer_size)
 
 class Classifier_128_features(nn.Module):
   def __init__(self, nb_classes):
@@ -150,10 +152,16 @@ test_loader = DataLoader(testset, batch_size=1000, sampler = SubsetRandomSampler
 
 acc_real = test_classifier(classifier, test_loader)
 acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
+results = {}
+results['accuracies'] = []
+results['added_classes'] = []
 print('Real test accuracy on known classes prior to stream training: {:.8f}'.format(acc_real))    
 print('Reconstructed test accuracy on known classes prior to stream training: {:.8f}'.format(acc_fake))  
+results['accuracies'].append(acc_real)
+results['known_classes'].append(len(known_classes))
 
 # --------------------------------------------------- STREAM TRAINING ----------------------------------------------------------
+
 stream_duration = 1000
 for interval in range(stream_duration):
   #TODO multiclass tests
@@ -189,7 +197,9 @@ for interval in range(stream_duration):
     acc_real = test_classifier(classifier, test_loader)
     acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
     print('Real test accuracy with new classes: {:.8f}'.format(acc_real))    
-    print('Reconstructed test accuracy with new classes: {:.8f}'.format(acc_fake))     
+    print('Reconstructed test accuracy with new classes: {:.8f}'.format(acc_fake))    
+    results['accuracies'].append(acc_real)
+    results['known_classes'].append(len(known_classes))
 
   
   for idx_stream, (X_stream, Y_stream) in enumerate(stream_loader):
@@ -249,7 +259,10 @@ for interval in range(stream_duration):
   acc_real = test_classifier(classifier, test_loader)
   acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
   print('Real test accuracy after {} intervals: {:.8f}'.format(interval+1, acc_real))    
-  print('Reconstructed test accuracy after {} intervals: {:.8f}'.format(interval+1, acc_fake))    
+  print('Reconstructed test accuracy after {} intervals: {:.8f}'.format(interval+1, acc_fake))   
+  results['accuracies'].append(acc_real)
+  results['known_classes'].append(len(known_classes))
+  torch.save(results, './results/')
   
   #if acc > max_accuracy:
     #max_accuracy = acc
