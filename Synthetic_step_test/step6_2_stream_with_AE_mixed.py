@@ -24,13 +24,13 @@ opts = {
   'betta2': 1, # Influence coefficient for reconstruction loss in AE
   }
 
-torch.cuda.set_device(1)
+torch.cuda.set_device(2)
 nb_of_classes = 500
 feature_size = 128
 code_size = 32
 fake_batches = 10
-real_batches = 3
-real_buffer_size = 3
+real_batches = 1
+real_buffer_size = 2
 real_buffer = Data_Buffer(real_buffer_size, opts['batch_size'])
 name_to_save = './results/res_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage.pth'.format(fake_batches, real_batches, real_buffer_size)
 
