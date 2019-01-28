@@ -238,8 +238,8 @@ for interval in range(stream_duration):
     class_indices = get_indices_for_classes(trainset, [stream_class])
     class_loader =  DataLoader(trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(class_indices), drop_last=True)
     for X_real, Y_real in class_loader:
-      historical_buffer.add_batch(gen_model.encoder(X_real.cuda()).data, stream_class[0])
-      real_buffer.add_batch(X_real.cuda(), stream_class[0])
+      historical_buffer.add_batch(gen_model.encoder(X_real.cuda()).data, stream_class)
+      real_buffer.add_batch(X_real.cuda(), stream_class)
 
   acc_real = test_classifier(classifier, test_loader)
   acc_fake = test_classifier_on_generator(classifier, gen_model, test_loader)
