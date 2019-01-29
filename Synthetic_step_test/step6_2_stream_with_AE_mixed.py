@@ -21,7 +21,7 @@ opts = {
   'batch_size': 100,
   'learning_rate': 0.001,
   'betta1': 1e-2, # Influence coefficient for classification loss in AE default 1e-2
-  'betta2': 0, # Influence coefficient for reconstruction loss in AE
+  'betta2': 1, # Influence coefficient for reconstruction loss in AE
   }
 
 torch.cuda.set_device(3)
@@ -29,7 +29,7 @@ nb_of_classes = 500
 feature_size = 128
 code_size = 32
 fake_batches = 10
-real_batches = 2
+real_batches = 0
 real_buffer_size = 2
 real_buffer = Data_Buffer(real_buffer_size, opts['batch_size'])
 name_to_save = './results/res_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage_{}_betta1_{}_betta2.pth'.format(fake_batches, real_batches, real_buffer_size, opts['betta1'], opts['betta2'])

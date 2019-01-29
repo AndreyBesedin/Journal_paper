@@ -126,6 +126,7 @@ classifier.load_state_dict(class_dict)
 classification_optimizer = optim.Adam(classifier.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
 classification_criterion = nn.CrossEntropyLoss()
 classifier.cuda()
+full_classifier.cuda()
 classification_criterion.cuda()
 
 gen_model = autoencoder_128_features(code_size)
@@ -222,7 +223,7 @@ for interval in range(stream_duration):
     #print('Batches forming a big one: {}'.format(nb_of_batches))
     inputs = torch.stack(mixed_batch_data).reshape(opts['batch_size']*nb_of_batches, feature_size)
     labels = torch.stack(mixed_batch_labels).reshape(opts['batch_size']*nb_of_batches)
-    micro_testset = TensorDataset(inputs, labels)
+    micro_testset = TensorDataset(inputs, labels.cpu())
     micro_test_loader = DataLoader(micro_testset, batch_size=100, shuffle=False)
     
     # Updating the classifier
@@ -235,8 +236,10 @@ for interval in range(stream_duration):
     
     # Updating the auto-encoder
     for idx in range(10):
-      train_acc = test_classifier_on_generator(full_classifier, gen_model, micro_test_loader)
-      print('Training accuracy on reconstructed data: {}'.format(train_acc))
+      train_acc = test_classifier(full_classifier, micro_test_loader)
+      print('Training accuracy on orig data: {}'.format(train_acc))
+      train_acc_gen = test_classifier_on_generator(full_classifier, gen_model, micro_test_loader)
+      print('Training accuracy on reconstructed data: {}'.format(train_acc_gen))
       reconstructions = gen_model(inputs)
       orig_classes = classifier(inputs).detach()
       classification_reconstructed = classifier(reconstructions)
