@@ -51,7 +51,9 @@ test_loader = DataLoader(testset, batch_size=opts['batch_size'], shuffle=False)
 # Initializing classification model, criterion and optimizer function
 classifier = Classifier_128_features(nb_of_classes)
 classification_optimizer = optim.Adam(classifier.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
+#classification_criterion = nn.CrossEntropyLoss()
 classification_criterion = nn.CrossEntropyLoss()
+
 classifier.cuda()
 classification_criterion.cuda()
 

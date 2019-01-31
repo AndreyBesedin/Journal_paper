@@ -8,7 +8,7 @@ from torch.utils.data import TensorDataset
 from torch.utils.data.sampler import SubsetRandomSampler
 
 nb_of_classes = 500
-code_size = 32
+code_size = 64
 training_epochs = 50
 
 opts = {
@@ -92,7 +92,7 @@ trainset = TensorDataset(full_data['data_train'], full_data['labels_train'])
 testset = TensorDataset(full_data['data_test'], full_data['labels_test'])
 
 # Initializing data loaders for first 5 classes
-pretrain_on_classes = range(250)
+pretrain_on_classes = range(500)
 
 indices_train = get_indices_for_classes(trainset, pretrain_on_classes)
 indices_test = get_indices_for_classes(testset, pretrain_on_classes)

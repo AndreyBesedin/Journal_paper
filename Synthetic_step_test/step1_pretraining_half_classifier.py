@@ -93,7 +93,7 @@ trainset = TensorDataset(full_data['data_train'], full_data['labels_train'])
 testset = TensorDataset(full_data['data_test'], full_data['labels_test'])
 
 # Initializing data loaders for first 5 classes
-pretrain_on_classes = range(250)
+pretrain_on_classes = range(500)
 
 indices_train = get_indices_for_classes(trainset, pretrain_on_classes)
 indices_test = get_indices_for_classes(testset, pretrain_on_classes)
@@ -108,7 +108,7 @@ classifier.cuda()
 classification_criterion.cuda()
 
 max_accuracy = 0
-training_epochs = 25
+training_epochs = 5
 for epoch in range(training_epochs):
   # Training the classifer
   for idx, (X, Y) in enumerate(train_loader):
