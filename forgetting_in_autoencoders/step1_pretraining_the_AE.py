@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import AE_models
 
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
@@ -9,11 +10,11 @@ from torch.utils.data.sampler import SubsetRandomSampler
 
 nb_of_classes = 500
 code_size = 32
-training_epochs = 200
-torch.cuda.set_device(3)
+training_epochs = 100
+torch.cuda.set_device(0)
 opts = {
   'batch_size': 500,
-  'learning_rate': 0.0005,
+  'learning_rate': 0.001,
   'betta1': 0.01, # Influence coefficient for classification loss in AE default 1e-2
   'betta2': 3, # Influence coefficient for reconstruction loss in AE
   }
@@ -32,31 +33,6 @@ class Classifier_128_features(nn.Module):
     x = self.fc3(x)
     return x
  
-class autoencoder_128_features(nn.Module):
-  def __init__(self, code_size):
-    def linear_block(in_, out_):
-#      return nn.Sequential(nn.Linear(in_, out_), nn.ReLU(True))
-      return nn.Sequential(nn.Linear(in_, out_), nn.BatchNorm1d(out_), nn.ReLU(True))
-    super(autoencoder_128_features, self).__init__()
-    self.encoder = nn.Sequential(
-      linear_block(128, 128),
-      linear_block(128, 192),
-      linear_block(192, 128),
-      nn.Linear(128, code_size),
-    )
-    self.decoder = nn.Sequential(
-      linear_block(code_size, 128),
-      linear_block(128, 192),
-      linear_block(192, 128),
-      nn.Linear(128, 128),
-#      nn.Tanh()
-    )
-  def forward(self, x):
-    x = self.encoder(x)
-    x = self.decoder(x)
-    return x
-  
-
 def test_classifier(classif, data_loader):
   total = 0
   correct = 0
@@ -91,6 +67,7 @@ trainset = TensorDataset(full_data['data_train'], full_data['labels_train'])
 testset = TensorDataset(full_data['data_test'], full_data['labels_test'])
 
 # Initializing data loaders for first 5 classes
+
 train_loader = DataLoader(trainset, batch_size=opts['batch_size'], shuffle=True)
 test_loader = DataLoader(testset, batch_size=opts['batch_size'], shuffle=False)
 
@@ -100,7 +77,7 @@ classifier_dict = torch.load('./pretrained_models/full_classifier_synthetic_data
 classifier.load_state_dict(classifier_dict)
 classifier.cuda()
 
-gen_model = autoencoder_128_features(code_size)
+gen_model = AE_models.AE11(code_size)
 gen_model.cuda()
 #generative_optimizer = torch.optim.Adam(gen_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
 #generative_criterion = nn.MSELoss()
@@ -150,7 +127,7 @@ for epoch in range(training_epochs):  # loop over the dataset multiple times
   print('Learning rate for the experiment: {}'.format(opts['learning_rate']))
   if acc_test > max_accuracy:
     max_accuracy = acc_test
-    #torch.save(gen_model.state_dict(), './pretrained_models/AE_32_synthetic_data.pth')
+    torch.save(gen_model.state_dict(), './pretrained_models/AE_32_synthetic_data.pth')
       
 print('End of training, max accuracy {}'.format(max_accuracy))    
 print(opts)    

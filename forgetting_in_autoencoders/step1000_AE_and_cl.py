@@ -14,6 +14,7 @@ torch.cuda.set_device(1)
 opts = {
   'batch_size': 500,
   'learning_rate': 0.0005,
+  'betta0': 0.1,
   'betta1': 0.01, # Influence coefficient for classification loss in AE default 1e-2
   'betta2': 3, # Influence coefficient for reconstruction loss in AE
   }
@@ -96,17 +97,23 @@ test_loader = DataLoader(testset, batch_size=opts['batch_size'], shuffle=False)
 
 # Initializing classification model
 classifier = Classifier_128_features(nb_of_classes)
-classifier_dict = torch.load('./pretrained_models/full_classifier_synthetic_data.pth')
-classifier.load_state_dict(classifier_dict)
+#classifier_dict = torch.load('./pretrained_models/full_classifier_synthetic_data.pth')
+#classifier.load_state_dict(classifier_dict)
 classifier.cuda()
 
 gen_model = autoencoder_128_features(code_size)
 gen_model.cuda()
+full_model = nn.Sequential(gen_model, classifier)
+full_model.cuda()
 #generative_optimizer = torch.optim.Adam(gen_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
 #generative_criterion = nn.MSELoss()
 #generative_criterion.cuda()
 
-generative_optimizer = torch.optim.Adam(gen_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
+classification_criterion = nn.CrossEntropyLoss()
+classification_criterion.cuda()
+
+
+training_optimizer = torch.optim.Adam(full_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
 generative_criterion_cl = nn.MSELoss()
 generative_criterion_cl.cuda()
 generative_criterion_rec = nn.MSELoss()
@@ -119,33 +126,34 @@ max_accuracy = 0
 for epoch in range(training_epochs):  # loop over the dataset multiple times
   for idx, (train_X, train_Y) in enumerate(train_loader):
     inputs = train_X.cuda()
+    labels = train_Y.long().cuda()
     # ===================forward=====================
-    #reconstructions = gen_model(inputs)
-    #orig_classes = classifier(inputs)
-    #classification_reconstructed = classifier(reconstructions)
-    #loss_gen = generative_criterion(classification_reconstructed, orig_classes)
-    #loss_gen.backward()
-    #generative_optimizer.step()
-    #generative_optimizer.zero_grad()
-    
     reconstructions = gen_model(inputs)
-    orig_classes = classifier(inputs).detach()
-    classification_reconstructed = classifier(reconstructions)
+    predictions_original = classifier(inputs)
+    predictions_reconstructed = classifier(reconstructions)
     #loss_gen_rec = 0
+    loss_cl = 0
+    if idx%10==0:
+      loss_cl = opts['betta0']*classification_criterion(predictions_original, labels)
     loss_gen_rec = opts['betta2']*generative_criterion_rec(reconstructions, inputs)
-    loss_gen_cl = opts['betta1']*generative_criterion_cl(classification_reconstructed, orig_classes)
-    loss_gen = loss_gen_cl + loss_gen_rec
-    loss_gen.backward()
-    generative_optimizer.step()
-    generative_optimizer.zero_grad()   
+    loss_gen_cl = opts['betta1']*generative_criterion_cl(predictions_reconstructed, predictions_original.data)
+    full_loss = loss_cl + loss_gen_cl + loss_gen_rec
+    full_loss.register_hook(lambda grad: print(grad))
+    full_loss.backward()
+    print(full_loss.grad)
+    training_optimizer.step()
+    training_optimizer.zero_grad()   
     if idx%100==0:
-      print('epoch [{}/{}], generators loss: {:.4f}'
-        .format(epoch+1, training_epochs,  loss_gen.item()))
+      print('cl_loss: {}; gen_cl: {}; gen_rec: {}'.format(loss_cl, loss_gen_cl, loss_gen_rec))
+      #print('epoch [{}/{}], generators loss: {:.4f}'
+      #  .format(epoch+1, training_epochs,  full_loss.item()))
 
     # ===================backward====================
-  acc_train = test_classifier_on_generator(classifier, gen_model, train_loader)
+  acc_orig = test_classifier(classifier, test_loader)
+#  acc_train = test_classifier_on_generator(classifier, gen_model, train_loader)
   acc_test = test_classifier_on_generator(classifier, gen_model, test_loader)
-  print('Test accuracy on reconstructed trainset: {}'.format(acc_train))
+  print('Test accuracy on the original testset: {}'.format(acc_orig))
+#  print('Test accuracy on reconstructed trainset: {}'.format(acc_train))
   print('Test accuracy on reconstructed testset: {}'.format(acc_test))
   print('Learning rate for the experiment: {}'.format(opts['learning_rate']))
   if acc_test > max_accuracy:
