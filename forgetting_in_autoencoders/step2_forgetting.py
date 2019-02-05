@@ -4,6 +4,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import AE_models
 
+from data_buffer import Data_Buffer
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -60,12 +61,27 @@ def test_classifier_on_generator(classif, gen_model, data_loader):
   gen_model.train()
   return correct/total*100
 
+def get_indices_for_classes(data, data_classes):
+  # Creates a list of indices of samples from the dataset, corresponding to given classes
+  indices = torch.FloatTensor(list((data.tensors[1].long()==class_).tolist() for class_ in data_classes)).sum(0).nonzero().long().squeeze()
+  return indices[torch.randperm(len(indices))]
+
 
 # Loading the datasets
 full_data = torch.load('./data/Synthetic/data_train_test_500_classes_128_features_2000_samples.pth')
 trainset = TensorDataset(full_data['data_train'], full_data['labels_train'])
 testset = TensorDataset(full_data['data_test'], full_data['labels_test'])
 
+print('Reshaping data into readable format')
+prev_classes = list(range(500))
+data_buffer = Data_Buffer(4, opts['batch_size'])
+for idx_class in prev_classes:
+  indices_prev = get_indices_for_classes(trainset, [idx_class])
+  prev_loader = DataLoader(trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(indices_prev),  drop_last=True)
+  for batch, label in prev_loader:                                                                                
+    data_buffer.add_batch(batch.cuda(), idx_class)
+
+print('Ended reshaping')
 # Initializing data loaders for first 5 classes
 
 train_loader = DataLoader(trainset, batch_size=opts['batch_size'], shuffle=True)
@@ -94,10 +110,15 @@ generative_criterion_rec.cuda()
 acc = test_classifier(classifier, test_loader)
 acc_rec = test_classifier_on_generator(classifier, gen_model, test_loader)
 print('Classification accuracy prior to training: {:.4f}'.format(acc))
-print('Test accuracy on reconstructed testset: {}'.format(acc_test))
+print('Test accuracy on reconstructed testset: {}'.format(acc_rec))
 
 max_accuracy = 0
 for epoch in range(training_epochs):  # loop over the dataset multiple times
+  if epoch % 2 == 0:
+    print('Transforming data with the latest autoencoder')
+    data_buffer.transform_data(gen_model)
+    trainset = data_buffer.make_tensor_dataset()
+    train_loader = DataLoader(trainset, batch_size=opts['batch_size'], shuffle=True, drop_last=True)
   for idx, (train_X, train_Y) in enumerate(train_loader):
     inputs = train_X.cuda()
     # ===================forward=====================
@@ -124,14 +145,14 @@ for epoch in range(training_epochs):  # loop over the dataset multiple times
         .format(epoch+1, training_epochs,  loss_gen.item()))
 
     # ===================backward====================
-  acc_train = test_classifier_on_generator(classifier, gen_model, train_loader)
+  acc_train = test_classifier(classifier, train_loader)
   acc_test = test_classifier_on_generator(classifier, gen_model, test_loader)
-  print('Test accuracy on reconstructed trainset: {}'.format(acc_train))
+  print('Test accuracy on trainset: {}'.format(acc_train))
   print('Test accuracy on reconstructed testset: {}'.format(acc_test))
   print('Learning rate for the experiment: {}'.format(opts['learning_rate']))
   if acc_test > max_accuracy:
     max_accuracy = acc_test
-    torch.save(gen_model.state_dict(), './pretrained_models/AE_32_synthetic_data.pth')
+    torch.save(gen_model.state_dict(), './pretrained_models/AE_32_synthetic_data_forgetting.pth')
       
 print('End of training, max accuracy {}'.format(max_accuracy))    
 print(opts)    
