@@ -1,4 +1,5 @@
 import time
+import copy
 import numpy as np
 
 import torch
@@ -6,6 +7,7 @@ import torch.nn as nn
 
 from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
+from torch.utils.data.sampler import SubsetRandomSampler
 
 class Data_Buffer:
   def __init__(self, max_batches_per_class=60, batch_size=100):
@@ -35,18 +37,21 @@ class Data_Buffer:
       self.oldest_batches[str(class_label)] = 0
   
   def load_from_tensor_dataset(self, dataset):
-    nb_of_classes = dataset.tensors[1].max() + 1
+    nb_of_classes = int(dataset.tensors[1].max().item()) + 1
     for idx_class in range(nb_of_classes):
       indices = torch.FloatTensor(list((dataset.tensors[1].long()==idx_class).tolist())).nonzero().long().squeeze()
-      class_loader = DataLoader(dataset, batch_size=self.batch_size, sampler = SubsetRandomSampler(indices_prev),  drop_last=True)
+      class_loader = DataLoader(dataset, batch_size=self.batch_size, sampler = SubsetRandomSampler(indices),  drop_last=True)
       for (X, Y) in class_loader:
         self.add_batch(X, idx_class)
       
   def transform_data(self, transform):
     # Inplace apply a given transform to all the batches in the buffer
+    device = torch.device('cuda:0' if torch.cuda.is_available() and next(transform.parameters()).is_cuda else 'cpu')
+    transformed_buffer = copy.deepcopy(self.dbuffer)
     for class_label in self.dbuffer.keys():
       for idx in range(len(self.dbuffer[str(class_label)])):
-        self.dbuffer[str(class_label)][idx] = transform(self.dbuffer[str(class_label)][idx]).data
+        transformed_buffer[str(class_label)][idx] = transform(self.dbuffer[str(class_label)][idx].to(device)).data
+    self.dbuffer = copy.deepcopy(transformed_buffer)
         
   def make_tensor_dataset(self):
     # Transform the buffer into a single tensor dataset
