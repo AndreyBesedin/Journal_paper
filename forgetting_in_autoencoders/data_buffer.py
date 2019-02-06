@@ -15,6 +15,7 @@ class Data_Buffer:
     self.batch_size = batch_size
     self.dbuffer = {}
     self.oldest_batches = {}
+    self.cuda_device = 0
   
   def add_batch(self, batch, class_label):
     """
@@ -46,12 +47,16 @@ class Data_Buffer:
       
   def transform_data(self, transform):
     # Inplace apply a given transform to all the batches in the buffer
-    device = torch.device('cuda:0' if torch.cuda.is_available() and next(transform.parameters()).is_cuda else 'cpu')
+    transform.eval()
+#device = torch.device('cuda:0' if torch.cuda.is_available() and next(transform.parameters()).is_cuda else 'cpu')
+
+    device = torch.device('cuda:{}'.format(self.cuda_device) if torch.cuda.is_available() else 'cpu')
     transformed_buffer = copy.deepcopy(self.dbuffer)
     for class_label in self.dbuffer.keys():
       for idx in range(len(self.dbuffer[str(class_label)])):
         transformed_buffer[str(class_label)][idx] = transform(self.dbuffer[str(class_label)][idx].to(device)).data
     self.dbuffer = copy.deepcopy(transformed_buffer)
+    transform.train()
         
   def make_tensor_dataset(self):
     # Transform the buffer into a single tensor dataset

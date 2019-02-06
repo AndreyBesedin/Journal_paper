@@ -112,9 +112,10 @@ acc_rec = test_classifier_on_generator(classifier, gen_model, test_loader)
 print('Classification accuracy prior to training: {:.4f}'.format(acc))
 print('Test accuracy on reconstructed testset: {}'.format(acc_rec))
 
+accuracies = []
 max_accuracy = 0
 for epoch in range(training_epochs):  # loop over the dataset multiple times
-  if epoch % 2 == 0:
+  if epoch % 1 == 0:
     print('Transforming data with the latest autoencoder')
     data_buffer.transform_data(gen_model)
     trainset = data_buffer.make_tensor_dataset()
@@ -145,14 +146,15 @@ for epoch in range(training_epochs):  # loop over the dataset multiple times
         .format(epoch+1, training_epochs,  loss_gen.item()))
 
     # ===================backward====================
-  acc_train = test_classifier(classifier, train_loader)
-  acc_test = test_classifier_on_generator(classifier, gen_model, test_loader)
-  print('Test accuracy on trainset: {}'.format(acc_train))
-  print('Test accuracy on reconstructed testset: {}'.format(acc_test))
+  #acc_test = test_classifier(classifier, test_loader)
+  acc_test_rec = test_classifier_on_generator(classifier, gen_model, test_loader)
+  accuracies.append(acc_test_rec)
+  #print('Test accuracy on trainset: {}'.format(acc_train))
+  print('Test accuracy on reconstructed testset: {}'.format(acc_test_rec))
   print('Learning rate for the experiment: {}'.format(opts['learning_rate']))
-  if acc_test > max_accuracy:
-    max_accuracy = acc_test
+  if acc_test_rec > max_accuracy:
+    max_accuracy = acc_test_rec
     torch.save(gen_model.state_dict(), './pretrained_models/AE_32_synthetic_data_forgetting.pth')
-      
+    torch.save(accuracies, './results/forgetting_AE_Synthetic.pth')  
 print('End of training, max accuracy {}'.format(max_accuracy))    
 print(opts)    
