@@ -25,17 +25,17 @@ opts = {
   'betta2': 1, # Influence coefficient for reconstruction loss in AE
   }
 
-cuda_device = 0
+cuda_device = 2
 torch.cuda.set_device(cuda_device)
 nb_of_classes = 30
 classes_per_interval = 3
 feature_size = 2048
 code_size = 32
 max_interval_duration = 20000 # Maximum number of images in each stream interval, then change the environment
-historical_buffer_size = 100 # Nb of batches of codes that we store per class
+historical_buffer_size = 50 # Nb of batches of codes that we store per class
 fake_batches = 0
-real_batches = 20
-real_buffer_size = 1
+real_batches = 16
+real_buffer_size = 4
 real_buffer = Data_Buffer(real_buffer_size, opts['batch_size'])
 real_buffer.cuda_device = cuda_device
 name_to_save = './results/LSUN_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage_{}_betta1_{}_betta2.pth'.format(fake_batches, real_batches, real_buffer_size, opts['betta1'], opts['betta2'])
@@ -91,7 +91,7 @@ def get_indices_for_classes(data, data_classes):
 
 # ----------------------------------------- LOADING THE ORIGINAL DATASETS ------------------------------------------------------
 
-trainset = torch.load('../datasets/LSUN/trainset.pth')
+trainset = torch.load('../datasets/LSUN/testset.pth')
 testset = torch.load('../datasets/LSUN/testset.pth')
 
 trainset = TensorDataset(trainset[0], trainset[1])

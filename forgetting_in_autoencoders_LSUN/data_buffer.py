@@ -40,21 +40,27 @@ class Data_Buffer:
   def load_from_tensor_dataset(self, dataset):
     nb_of_classes = int(dataset.tensors[1].max().item()) + 1
     for idx_class in range(nb_of_classes):
-      indices = torch.FloatTensor(list((dataset.tensors[1].long()==idx_class).tolist())).nonzero().long().squeeze()
+      indices = torch.FloatTensor((dataset.tensors[1].long()==idx_class).tolist()).nonzero().long().squeeze()
       class_loader = DataLoader(dataset, batch_size=self.batch_size, sampler = SubsetRandomSampler(indices),  drop_last=True)
       for (X, Y) in class_loader:
         self.add_batch(X, idx_class)
-      
+  
+  def add_batches_from_dataset(self, dataset, classes_to_add, batches_per_class):
+    for idx_class in classes_to_add:
+      indices_class = torch.FloatTensor((dataset.tensors[1].long()==idx_class).tolist()).nonzero().long().squeeze()
+      class_loader = DataLoader(dataset, batch_size=self.batch_size, sampler = SubsetRandomSampler(indices_class),  drop_last=True)
+      for idx_batch in range(batches_per_class):
+        self.add_batch(next(iter(class_loader))[0], idx_class)
+    
   def transform_data(self, transform):
     # Inplace apply a given transform to all the batches in the buffer
     transform.eval()
 #device = torch.device('cuda:0' if torch.cuda.is_available() and next(transform.parameters()).is_cuda else 'cpu')
-
     device = torch.device('cuda:{}'.format(self.cuda_device) if torch.cuda.is_available() else 'cpu')
     transformed_buffer = copy.deepcopy(self.dbuffer)
     for class_label in self.dbuffer.keys():
       for idx in range(len(self.dbuffer[str(class_label)])):
-        transformed_buffer[str(class_label)][idx] = transform(self.dbuffer[str(class_label)][idx].to(device)).data
+        transformed_buffer[str(class_label)][idx] = transform(self.dbuffer[str(class_label)][idx].to(device)).cpu().data
     self.dbuffer = copy.deepcopy(transformed_buffer)
     transform.train()
         
