@@ -8,11 +8,10 @@ from torch.utils.data import TensorDataset
 from torch.utils.data.sampler import SubsetRandomSampler
 
 nb_of_classes = 30
-tries_per_size = 100
-training_epochs = 25
+tries_per_size = 10
+training_epochs = 50
 
 opts = {
-  'data_per_class': 2000,
   'batch_size': 100,
   'learning_rate': 0.001
   }
@@ -43,7 +42,7 @@ def test_classifier(classif, data_loader):
   return correct/total*100
 
 # Loading the datasets
-trainset = torch.load('../datasets/LSUN/testset.pth')
+trainset = torch.load('../datasets/LSUN/trainset.pth')
 testset = torch.load('../datasets/LSUN/testset.pth')
 trainset = TensorDataset(trainset[0], trainset[1])
 testset = TensorDataset(testset[0], testset[1])
@@ -53,8 +52,9 @@ test_loader = DataLoader(testset, batch_size=opts['batch_size'], shuffle=False)
 # Initializing classification model, criterion and optimizer function
 
 data_per_class_sizes = [50, 100, 200, 500, 1000, 2000, 4000, 10000]
+batch_sizes = [100, 100, 200, 200, 500, 500, 500, 500]
 
-for data_per_class in data_per_class_sizes: 
+for idx_size, data_per_class in enumerate(data_per_class_sizes): 
   size_accuracies = []
   print('Working with classes of size {}'.format(data_per_class))
   for try_idx in range(tries_per_size):
@@ -68,7 +68,8 @@ for data_per_class in data_per_class_sizes:
   
     max_accuracy = 0
     indices = torch.randperm(len(trainset))[:data_per_class*nb_of_classes].long()
-    train_loader = DataLoader(trainset, opts['batch_size'], SubsetRandomSampler(indices))
+    train_loader = DataLoader(trainset, batch_size = batch_sizes[idx_size], sampler = SubsetRandomSampler(indices))
+    print('Data size: {}'.format(len(train_loader)))
     for epoch in range(training_epochs):
       # Training the classifer
       for idx, (X, Y) in enumerate(train_loader):
@@ -85,6 +86,6 @@ for data_per_class in data_per_class_sizes:
       print('Test accuracy after {} epochs: {:.8f}'.format(epoch+1, acc))    
       if acc > max_accuracy:
         max_accuracy = acc
-    try_accuracies.append(max_accuracy)   
-  torch.save(try_accuracies, 'results/size_test_lsun_{}_images_per_class.pth'.format(data_per_class))
+    size_accuracies.append(max_accuracy)   
+    torch.save(size_accuracies, 'results/size_test_lsun_{}_images_per_class.pth'.format(data_per_class))
     
