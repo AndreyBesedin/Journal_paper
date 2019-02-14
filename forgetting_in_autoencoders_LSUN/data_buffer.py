@@ -16,7 +16,49 @@ class Data_Buffer:
     self.dbuffer = {}
     self.oldest_batches = {}
     self.cuda_device = 0
+    self.data_stats = []
+    self.mean_drift = []
   
+  def compute_data_drift(self):
+    if len(self.data_stats)<=1:
+      print('Not enough history to compute drift, come back later=)')
+    else:
+      drift_from_last = {key: (self.data_stats[-2]['by_class'][key]['mean'] - self.data_stats[-1]['by_class'][key]['mean']).norm().item() for key in self.data_stats[-1]['by_class'].keys()}
+      drift_from_orig = {key: (self.data_stats[0]['by_class'][key]['mean'] - self.data_stats[-1]['by_class'][key]['mean']).norm().item() for key in self.data_stats[-1]['by_class'].keys()}
+      total_drift_from_last = (self.data_stats[-2]['full_mean'] - self.data_stats[-1]['full_mean']).norm().item()
+      total_drift_from_orig = (self.data_stats[0]['full_mean'] - self.data_stats[-1]['full_mean']).norm().item()
+      print('Classwise mean drift from last epoch:')
+      print(sum(list(drift_from_last.values()))/len(drift_from_last.values()))
+      print('Classwise mean drift from the original distribution:') 
+      print(sum(list(drift_from_orig.values()))/len(drift_from_orig.values()))
+      print('Total mean drift from last epoch:')
+      print(total_drift_from_last)
+      print('Total mean drift from the original distribution:')
+      print(total_drift_from_orig)
+      self.mean_drift.append({
+        'drift_from_last': drift_from_last,
+        'total_drift_from_last': total_drift_from_last, 
+        'drift_from_orig': drift_from_orig,
+        'total_drift_from_orig': total_drift_from_orig
+      })
+
+  def compute_data_stats(self):
+    """
+    Tool to compute current data basic statistics
+    For each data class we compute the center of the cloud of corresponding points and its coordinate-wise standard deviation ('by class' key)
+    We also compute the center of the whole samples distribution in the dataset ('full_mean' key) 
+    """
+    latest_stats = {}
+    total_mean = 0
+    for key in self.dbuffer.keys():
+      latest_stats[key] = {
+        'mean': (sum(self.dbuffer[key])/len(self.dbuffer[key])).mean(0),
+        'std' : (sum(self.dbuffer[key])/len(self.dbuffer[key])).std(0)
+      }
+      total_mean += latest_stats[key]['mean']
+    self.data_stats.append({'by_class': latest_stats, 'full_mean': total_mean/len(self.dbuffer)})
+    self.compute_data_drift()
+
   def add_batch(self, batch, class_label):
     """
     Adding a batch to the buffer to the corresponding class storage, 
@@ -38,12 +80,13 @@ class Data_Buffer:
       self.oldest_batches[str(class_label)] = 0
   
   def load_from_tensor_dataset(self, dataset):
-    nb_of_classes = int(dataset.tensors[1].max().item()) + 1
-    for idx_class in range(nb_of_classes):
+    data_classes = [int(a) for a in set(dataset.tensors[1].tolist())]
+    for idx_class in data_classes:
       indices = torch.FloatTensor((dataset.tensors[1].long()==idx_class).tolist()).nonzero().long().squeeze()
       class_loader = DataLoader(dataset, batch_size=self.batch_size, sampler = SubsetRandomSampler(indices),  drop_last=True)
       for (X, Y) in class_loader:
         self.add_batch(X, idx_class)
+    self.compute_data_stats()
   
   def add_batches_from_dataset(self, dataset, classes_to_add, batches_per_class):
     for idx_class in classes_to_add:
@@ -51,7 +94,9 @@ class Data_Buffer:
       class_loader = DataLoader(dataset, batch_size=self.batch_size, sampler = SubsetRandomSampler(indices_class),  drop_last=True)
       for idx_batch in range(batches_per_class):
         self.add_batch(next(iter(class_loader))[0], idx_class)
-    
+    print('ADDED DATA FROM THE HISTORICAL DATASET')
+    self.compute_data_stats()
+
   def transform_data(self, transform):
     # Inplace apply a given transform to all the batches in the buffer
     transform.eval()
@@ -63,7 +108,8 @@ class Data_Buffer:
         transformed_buffer[str(class_label)][idx] = transform(self.dbuffer[str(class_label)][idx].to(device)).cpu().data
     self.dbuffer = copy.deepcopy(transformed_buffer)
     transform.train()
-        
+    self.compute_data_stats()
+    
   def make_tensor_dataset(self):
     # Transform the buffer into a single tensor dataset
     tensor_data = []
@@ -75,7 +121,7 @@ class Data_Buffer:
     tensor_data = tensor_data.reshape(tensor_data.shape[0]*tensor_data.shape[1], tensor_data.shape[2])
     return TensorDataset(tensor_data, torch.FloatTensor(tensor_labels))
   
-  # TEST
+  # TESTS
   def test_transforms(self):
     print('TESTING THE CORRECTNESS OF THE CLASS')
     print('Initializing dataset')
