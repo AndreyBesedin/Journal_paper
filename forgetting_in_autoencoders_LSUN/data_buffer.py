@@ -18,6 +18,7 @@ class Data_Buffer:
     self.cuda_device = 0
     self.data_stats = []
     self.mean_drift = []
+    self.compute_stats = False
   
   def compute_data_drift(self):
     if len(self.data_stats)<=1:
@@ -91,7 +92,8 @@ class Data_Buffer:
       class_loader = DataLoader(dataset, batch_size=self.batch_size, sampler = SubsetRandomSampler(indices),  drop_last=True)
       for (X, Y) in class_loader:
         self.add_batch(X, idx_class)
-    self.compute_data_stats()
+    if self.compute_stats:
+      self.compute_data_stats()
   
   def add_batches_from_dataset(self, dataset, classes_to_add, batches_per_class):
     for idx_class in classes_to_add:
@@ -100,7 +102,8 @@ class Data_Buffer:
       for idx_batch in range(batches_per_class):
         self.add_batch(next(iter(class_loader))[0], idx_class)
     print('ADDED DATA FROM THE HISTORICAL DATASET')
-    self.compute_data_stats()
+    if self.compute_stats:
+      self.compute_data_stats()
 
   def transform_data(self, transform):
     # Inplace apply a given transform to all the batches in the buffer
@@ -114,7 +117,8 @@ class Data_Buffer:
         transformed_buffer[str(class_label)]['times_reconstructed'][idx]+=1
     self.dbuffer = copy.deepcopy(transformed_buffer)
     transform.train()
-    self.compute_data_stats()
+    if self.compute_stats:
+      self.compute_data_stats()
     
   def make_tensor_dataset(self):
     # Transform the buffer into a single tensor dataset

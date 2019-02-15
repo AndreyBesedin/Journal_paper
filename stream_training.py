@@ -399,7 +399,7 @@ for stream_intervals in range(opts.max_stream_intervals):
         loss_gen.backward()
         generative_optimizer_classification.step()
         generative_optimizer_classification.zero_grad()
-        classification_optimizer.zero_grad()
+       # classification_optimizer.zero_grad()
       #if idx%100==0:
       #  print('epoch [{}/{}], generators loss: {:.4f}'
       #    .format(interval, opts.niter,  loss_gen.item()))
