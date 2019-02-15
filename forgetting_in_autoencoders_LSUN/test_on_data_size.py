@@ -51,9 +51,10 @@ test_loader = DataLoader(testset, batch_size=opts['batch_size'], shuffle=False)
 
 # Initializing classification model, criterion and optimizer function
 
-data_per_class_sizes = [50, 100, 200, 500, 1000, 2000, 4000, 10000]
-batch_sizes = [100, 100, 200, 200, 500, 500, 500, 500]
-
+#data_per_class_sizes = [50, 100, 200, 500, 1000, 2000, 4000, 10000]
+#batch_sizes = [100, 100, 200, 200, 500, 500, 500, 500]
+data_per_class_sizes = [20000, 40000, 60000, 80000, 100000]
+batch_sizes = [1000]*5
 for idx_size, data_per_class in enumerate(data_per_class_sizes): 
   size_accuracies = []
   print('Working with classes of size {}'.format(data_per_class))

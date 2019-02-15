@@ -32,10 +32,10 @@ classes_per_interval = 3
 feature_size = 2048
 code_size = 32
 max_interval_duration = 20000 # Maximum number of images in each stream interval, then change the environment
-historical_buffer_size = 50 # Nb of batches of codes that we store per class
-fake_batches = 0
-real_batches = 16
-real_buffer_size = 4
+historical_buffer_size = 1000 # Nb of batches of codes that we store per class
+fake_batches = 18
+real_batches = 2
+real_buffer_size = 10
 real_buffer = Data_Buffer(real_buffer_size, opts['batch_size'])
 real_buffer.cuda_device = cuda_device
 name_to_save = './results/LSUN_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage_{}_betta1_{}_betta2.pth'.format(fake_batches, real_batches, real_buffer_size, opts['betta1'], opts['betta2'])
@@ -94,7 +94,7 @@ def get_indices_for_classes(data, data_classes):
 trainset = torch.load('../datasets/LSUN/testset.pth')
 testset = torch.load('../datasets/LSUN/testset.pth')
 
-trainset = TensorDataset(trainset[0], trainset[1])
+trainset = TensorDataset(trainset[0], trainset[1], torch.zeros(len(trainset[1])))
 testset = TensorDataset(testset[0], testset[1])
 
 
@@ -126,12 +126,16 @@ generative_criterion_rec.cuda()
 prev_classes = list(range(15))
 historical_buffer = Data_Buffer(historical_buffer_size, opts['batch_size'])
 historical_buffer.cuda_device = cuda_device
+"""
+Filling in the historical buffer
+"""
 for idx_class in prev_classes:
   indices_prev = get_indices_for_classes(trainset, [idx_class])
   prev_loader = DataLoader(trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(indices_prev),  drop_last=True)
-  for batch, label in prev_loader:                                                                                
-    historical_buffer.add_batch(gen_model.encoder(batch.cuda()).data, idx_class)
-    real_buffer.add_batch(batch.cuda(), idx_class)
+  for idx in range(historical_buffer_size):
+    batch = next(iter(prev_loader))
+    historical_buffer.add_batch(gen_model.encoder(batch[0].cuda()).data, idx_class)                                                         
+    real_buffer.add_batch(batch[0].data.cuda(), idx_class)
 
 max_accuracy = 0
 

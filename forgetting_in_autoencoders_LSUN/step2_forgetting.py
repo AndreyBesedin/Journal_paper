@@ -12,7 +12,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 nb_of_classes = 30
 code_size = 32
 training_epochs = 100
-cuda_device = 0
+cuda_device = 1 
 torch.cuda.set_device(cuda_device)
 real_batches_to_add = 2
 batches_per_class = 20
@@ -73,7 +73,7 @@ def get_indices_for_classes(data, data_classes):
 trainset = torch.load('../datasets/LSUN/testset.pth')
 testset = torch.load('../datasets/LSUN/testset.pth')
 
-original_trainset = TensorDataset(trainset[0], trainset[1])
+original_trainset = TensorDataset(trainset[0], trainset[1], torch.zeros(trainset[1].shape))
 testset = TensorDataset(testset[0], testset[1])
 
 # Loading the datasets
@@ -81,10 +81,16 @@ print('Reshaping data into readable format')
 data_buffer = Data_Buffer(batches_per_class, opts['batch_size'])
 data_buffer.add_batches_from_dataset(original_trainset, list(range(30)), batches_per_class)                                         
 data_buffer.cuda_device = cuda_device
+
+orig_buffer = Data_Buffer(real_batches_to_add, opts['batch_size'])
+orig_buffer.add_batches_from_dataset(original_trainset, list(range(30)), real_batches_to_add)
+orig_buffer.cuda_device = cuda_device
+original_trainset = orig_buffer.make_tensor_dataset()
+
 print('Ended reshaping')
 # Initializing data loaders for first 5 classes
 
-train_loader = DataLoader(original_trainset, batch_size=opts['batch_size'], shuffle=True)
+#train_loader = DataLoader(original_trainset, batch_size=opts['batch_size'], shuffle=True)
 test_loader = DataLoader(testset, batch_size=opts['batch_size'], shuffle=False)
 
 # Initializing classification model
@@ -115,13 +121,13 @@ print('Test accuracy on reconstructed testset: {}'.format(acc_rec))
 accuracies = []
 max_accuracy = 0
 for epoch in range(training_epochs):  # loop over the dataset multiple times
-  if epoch % reconstruct_every == 0 and epoch>=1:
-    print('Transforming data with the latest autoencoder')
-    data_buffer.transform_data(gen_model)
-    data_buffer.add_batches_from_dataset(original_trainset, list(range(30)), real_batches_to_add)
-    trainset = data_buffer.make_tensor_dataset()
-    train_loader = DataLoader(trainset, batch_size=opts['batch_size'], shuffle=True, drop_last=True)
-  for idx, (train_X, train_Y) in enumerate(train_loader):
+#  if epoch % reconstruct_every == 0 and epoch>=1:
+  print('Transforming data with the latest autoencoder')
+  data_buffer.transform_data(gen_model)
+  data_buffer.add_batches_from_dataset(original_trainset, list(range(30)), real_batches_to_add)
+  trainset = data_buffer.make_tensor_dataset()
+  train_loader = DataLoader(trainset, batch_size=opts['batch_size'], shuffle=True, drop_last=True)
+  for idx, (train_X, train_Y, _) in enumerate(train_loader):
     inputs = train_X.cuda()
     # ===================forward=====================
     #reconstructions = gen_model(inputs)
@@ -156,6 +162,6 @@ for epoch in range(training_epochs):  # loop over the dataset multiple times
   if acc_test_rec > max_accuracy:
     max_accuracy = acc_test_rec
 #    torch.save(gen_model.state_dict(), './pretrained_models/AE_32_synthetic_data_forgetting.pth')
-    torch.save(accuracies, './results/forgetting_AE_LSUN_{}_real_batches.pth'.format(real_batches_to_add)) 
+  torch.save(accuracies, './results/forgetting_AE_LSUN_{}_real_batches_old_loss.pth'.format(real_batches_to_add)) 
 print('End of training, max accuracy {}'.format(max_accuracy))    
 print(opts)    

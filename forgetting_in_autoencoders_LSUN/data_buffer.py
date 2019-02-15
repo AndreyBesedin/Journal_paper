@@ -52,31 +52,36 @@ class Data_Buffer:
     total_mean = 0
     for key in self.dbuffer.keys():
       latest_stats[key] = {
-        'mean': (sum(self.dbuffer[key])/len(self.dbuffer[key])).mean(0),
-        'std' : (sum(self.dbuffer[key])/len(self.dbuffer[key])).std(0)
+        'mean': (sum(self.dbuffer[key]['data'])/len(self.dbuffer[key]['data'])).mean(0),
+        'std' : (sum(self.dbuffer[key]['data'])/len(self.dbuffer[key]['data'])).std(0)
       }
       total_mean += latest_stats[key]['mean']
     self.data_stats.append({'by_class': latest_stats, 'full_mean': total_mean/len(self.dbuffer)})
     self.compute_data_drift()
 
-  def add_batch(self, batch, class_label):
+  def add_batch(self, batch, class_label, times_reconstructed = 0):
     """
     Adding a batch to the buffer to the corresponding class storage, 
     The oldest batches are replaced when the buffer is full
     If an unknown class appears - a new storage is added
+    Times_reconstructed corresponds to the number of transforms previously applied to the batch: 0 - original data 
     """
     if str(class_label) in self.dbuffer.keys():
       if len(self.dbuffer[str(class_label)]) < self.max_batches_per_class:
         #print('adding new batch')
-        self.dbuffer[str(class_label)].append(batch.clone())
+        self.dbuffer[str(class_label)]['data'].append(batch.clone())
+        self.dbuffer[str(class_label)]['times_reconstructed'].append(times_reconstructed)
       else:
-        self.dbuffer[str(class_label)][self.oldest_batches[str(class_label)]] = batch.clone()
+        self.dbuffer[str(class_label)]['data'][self.oldest_batches[str(class_label)]] = batch.clone()
+        self.dbuffer[str(class_label)]['times_reconstructed'][self.oldest_batches[str(class_label)]] = times_reconstructed
         self.oldest_batches[str(class_label)] = (self.oldest_batches[str(class_label)] + 1) % self.max_batches_per_class
         #print('replacing old batch')
     else:
       #print('Class label:{}'.format(class_label))
       #print('initializing new class')
-      self.dbuffer[str(class_label)] = [batch.clone()]
+      self.dbuffer[str(class_label)] = {}
+      self.dbuffer[str(class_label)]['data'] = [batch.clone()]
+      self.dbuffer[str(class_label)]['times_reconstructed'] = [times_reconstructed]
       self.oldest_batches[str(class_label)] = 0
   
   def load_from_tensor_dataset(self, dataset):
@@ -104,8 +109,9 @@ class Data_Buffer:
     device = torch.device('cuda:{}'.format(self.cuda_device) if torch.cuda.is_available() else 'cpu')
     transformed_buffer = copy.deepcopy(self.dbuffer)
     for class_label in self.dbuffer.keys():
-      for idx in range(len(self.dbuffer[str(class_label)])):
-        transformed_buffer[str(class_label)][idx] = transform(self.dbuffer[str(class_label)][idx].to(device)).cpu().data
+      for idx in range(len(self.dbuffer[str(class_label)]['data'])):
+        transformed_buffer[str(class_label)]['data'][idx] = transform(self.dbuffer[str(class_label)]['data'][idx].to(device)).cpu().data
+        transformed_buffer[str(class_label)]['times_reconstructed'][idx]+=1
     self.dbuffer = copy.deepcopy(transformed_buffer)
     transform.train()
     self.compute_data_stats()
@@ -114,12 +120,14 @@ class Data_Buffer:
     # Transform the buffer into a single tensor dataset
     tensor_data = []
     tensor_labels = []
+    tensor_times_reconstructed = []
     for key in self.dbuffer.keys():
-      tensor_data += self.dbuffer[key]
-      tensor_labels += [int(key)]*(self.batch_size*len(self.dbuffer[key]))
+      tensor_data += self.dbuffer[key]['data']
+      tensor_labels += [int(key)]*(self.batch_size*len(self.dbuffer[key]['data']))
+      tensor_times_reconstructed += [times_rec for times_rec in self.dbuffer[key]['times_reconstructed'] for _ in range(self.batch_size)]
     tensor_data = torch.stack(tensor_data)
     tensor_data = tensor_data.reshape(tensor_data.shape[0]*tensor_data.shape[1], tensor_data.shape[2])
-    return TensorDataset(tensor_data, torch.FloatTensor(tensor_labels))
+    return TensorDataset(tensor_data, torch.FloatTensor(tensor_labels), torch.FloatTensor(tensor_times_reconstructed))
   
   # TESTS
   def test_transforms(self):
