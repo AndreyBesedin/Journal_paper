@@ -95,7 +95,7 @@ class Data_Buffer:
       for idx_batch in range(self.max_batches_per_class):
         X = next(iter(class_loader))[0]
         if transform:
-          self.add_batch(transform(X.cuda()).detach().cpu(), idx_class)
+          self.add_batch(transform(X.cuda()).detach().cpu(), idx_class, 1)
         else:
           self.add_batch(X, idx_class)
     if self.compute_stats:

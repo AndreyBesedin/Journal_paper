@@ -56,6 +56,6 @@ def CrossEntropy_loss_weighted(outputs, targets, coefficients, cuda = True):
   CEloss.cuda()
   coefficients = coefficients.cpu().tolist()
   coefficients_inv = [1/(a+1) for a in coefficients]
-  return (CEloss(outputs, targets).mean(1)*torch.Tensor(coefficients_inv).cuda()).sum()/sum(coefficients_inv)
+  return (CEloss(outputs, targets)*torch.Tensor(coefficients_inv).cuda()).sum()/sum(coefficients_inv)
   return False
 
