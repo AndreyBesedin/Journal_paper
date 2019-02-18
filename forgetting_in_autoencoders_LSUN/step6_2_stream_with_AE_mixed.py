@@ -52,16 +52,16 @@ del trainset, testset
 # ----------------------------------------- LOADING PRETRAINED MODELS ----------------------------------------------------------
 # Initializing classification model
 classifier = models.Classifier_LSUN(nb_of_classes)
-class_dict = torch.load('./pretrained_models/classifier_15_LSUN.pth')
-classifier.load_state_dict(class_dict)
+#class_dict = torch.load('./pretrained_models/classifier_15_LSUN.pth')
+#classifier.load_state_dict(class_dict)
 classification_optimizer = optim.Adam(classifier.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
 classification_criterion = nn.CrossEntropyLoss()
 classifier.cuda()
 classification_criterion.cuda()
 
 gen_model = models.AE_LSUN(code_size)
-gen_dict = torch.load('./pretrained_models/AE_15_classes_32_code_size_LSUN.pth')
-gen_model.load_state_dict(gen_dict)
+#gen_dict = torch.load('./pretrained_models/AE_15_classes_32_code_size_LSUN.pth')
+#gen_model.load_state_dict(gen_dict)
 gen_model.cuda()
 
 generative_optimizer = torch.optim.Adam(gen_model.parameters(), lr=opts['learning_rate'], betas=(0.9, 0.999), weight_decay=1e-5)
@@ -71,7 +71,7 @@ generative_criterion_rec = nn.MSELoss()
 generative_criterion_rec.cuda()
 
 # ---------------------------------- FILLING THE BUFFERS WITH THE HISTORICAL DATA ----------------------------------------------
-prev_classes = list(range(15))
+
 codes_storage = Data_Buffer(codes_storage_size, opts['batch_size'])
 codes_storage.cuda_device = cuda_device
 
@@ -79,19 +79,16 @@ real_buffer = Data_Buffer(real_buffer_size, opts['batch_size'])
 real_buffer.cuda_device = cuda_device
 
 """
-Filling in the historical buffer
+Filling in historical buffers
 """
-for idx_class in prev_classes:
-  indices_prev = sup_functions.get_indices_for_classes(full_original_trainset, [idx_class])
-  historical_loader = DataLoader(full_original_trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(indices_prev),  drop_last=True)
-  for idx in range(codes_storage_size):
-    batch = next(iter(historical_loader))
-    if idx < real_buffer_size:
-      real_buffer.add_batch(batch[0].data.cuda(), idx_class, 0)
-    codes_storage.add_batch(gen_model.encoder(batch[0].cuda()).data.cpu(), idx_class, 1)    
+pretrained_on_classes = list(range(15))
+real_buffer.load_from_tensor_dataset(full_original_trainset, pretrained_on_classes)
+codes_storage.load_from_tensor_dataset(full_original_trainset, pretrained_on_classes, gen_model.encoder)
 
+print('Historical data successfully loaded from the datasets')
 
 max_accuracy = 0
+print('Testing already acquired knowledge prior to stream training')
 
 known_classes = [int(a) for a in codes_storage.dbuffer.keys()]
 indices_test = sup_functions.get_indices_for_classes(full_original_testset, known_classes)
@@ -120,13 +117,14 @@ for interval in range(stream_duration):
   # Preloading the historical data/stored codes
   print('Starting new interval, create tensors from storages') 
   sup_functions.memory_check()
-  fake_data = codes_storage.make_tensor_dataset()
-  real_data = real_buffer.make_tensor_dataset()
+  codes_storage.make_tensor_dataset()
+  real_buffer.make_tensor_dataset()
   print('Fake and real tensors created')
   sup_functions.memory_check()
+  # Initializing loaders: stream, historical and codes to decode
   stream_loader = DataLoader(full_original_trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(stream_indices), drop_last=True)
-  fake_loader = DataLoader(fake_data, batch_size=opts['batch_size'], shuffle=True, drop_last=True)
-  real_loader = DataLoader(real_data, batch_size=opts['batch_size'], shuffle=True, drop_last=True)
+  fake_loader = DataLoader(codes_storage.tensor_dataset, batch_size=opts['batch_size'], shuffle=True, drop_last=True)
+  real_loader = DataLoader(real_buffer.tensor_dataset, batch_size=opts['batch_size'], shuffle=True, drop_last=True)
   known_classes = [int(a) for a in codes_storage.dbuffer.keys()]
   
   # We will make an extra testing step with completed testset if a new class is coming from the stream
@@ -148,8 +146,8 @@ for interval in range(stream_duration):
     results['accuracies'].append(acc_real)
     results['known_classes'].append(len(known_classes))
 
-  
   for idx_stream, (X_stream, Y_stream, _) in enumerate(stream_loader):
+    # Forming a mixed data batch
     if idx_stream*opts['batch_size'] > max_interval_duration:
       break
     mixed_batch_data = []
@@ -160,7 +158,7 @@ for interval in range(stream_duration):
     mixed_batch_reconstruction_counter.append(torch.zeros(Y_stream.shape).long().cuda())
     for idx_fake in range(fake_batches):
       fake_batch = next(iter(fake_loader))
-      mixed_batch_data.append(gen_model_old.decoder(fake_batch[0].cuda()).data)
+      mixed_batch_data.append(gen_model_old.decoder(fake_batch[0].cuda()).detach())
       mixed_batch_labels.append(fake_batch[1].long().cuda())
       mixed_batch_reconstruction_counter.append(fake_batch[2].long().cuda())
     for idx_real in range(real_batches):
@@ -178,6 +176,7 @@ for interval in range(stream_duration):
     # Updating the classifier
     outputs = classifier(inputs)
     classification_loss = classification_criterion(outputs, labels)
+    classification_loss = sup_functions.CrossEntropy_loss_weighted(outputs, labels, reconstruction_counter)
     #classification_loss.backward(retain_graph=True)
     classification_loss.backward()
     classification_optimizer.step()
@@ -195,7 +194,7 @@ for interval in range(stream_duration):
     orig_classes = classifier(inputs).detach()
     classification_reconstructed = classifier(reconstructions)
     loss_gen_rec = opts['betta2']*sup_functions.MSEloss_weighted(reconstructions, inputs, reconstruction_counter)
-    loss_gen_cl = opts['betta1']*sup_functions.MSEloss_weighted(classification_reconstructed, orig_classes,reconstruction_counter)
+    loss_gen_cl = opts['betta1']*sup_functions.MSEloss_weighted(classification_reconstructed, orig_classes, reconstruction_counter)
 #    loss_gen_rec = opts['betta2']*generative_criterion_rec(reconstructions, inputs)
 #    loss_gen_cl = opts['betta1']*generative_criterion_cl(classification_reconstructed, orig_classes)
     #print('reconstruction loss: {}'.format(loss_gen_rec.item()))
@@ -212,7 +211,7 @@ for interval in range(stream_duration):
     class_indices = sup_functions.get_indices_for_classes(full_original_trainset, [stream_class])
     class_loader =  DataLoader(full_original_trainset, batch_size=opts['batch_size'], sampler = SubsetRandomSampler(class_indices), drop_last=True)
     for X_real, Y_real, _ in class_loader:
-      codes_storage.add_batch(gen_model.encoder(X_real.cuda()).data.cpu(), stream_class, 1)
+      codes_storage.add_batch(gen_model.encoder(X_real.cuda()).detach().cpu(), stream_class, 1)
       real_buffer.add_batch(X_real.cuda(), stream_class, 0)
 
   acc_real = sup_functions.test_classifier(classifier, test_loader)

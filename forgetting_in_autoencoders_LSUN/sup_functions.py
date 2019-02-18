@@ -20,7 +20,6 @@ def test_classifier(classif, data_loader):
     #print(cmat)
     total += labels.size(0)
     correct += (predicted.cpu().long() == labels).sum().item()
-    
   return correct/total*100
 
 def test_classifier_on_generator(classif, gen_model, data_loader):
@@ -53,4 +52,10 @@ def MSEloss_weighted(outputs, targets, coefficients, cuda = True):
 
 def CrossEntropy_loss_weighted(outputs, targets, coefficients, cuda = True):
   #TODO implement if needed....
+  CEloss = nn.CrossEntropyLoss(reduction = 'none')
+  CEloss.cuda()
+  coefficients = coefficients.cpu().tolist()
+  coefficients_inv = [1/(a+1) for a in coefficients]
+  return (CEloss(outputs, targets).mean(1)*torch.Tensor(coefficients_inv).cuda()).sum()/sum(coefficients_inv)
   return False
+

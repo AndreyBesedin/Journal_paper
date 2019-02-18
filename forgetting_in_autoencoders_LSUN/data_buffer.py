@@ -85,13 +85,19 @@ class Data_Buffer:
       self.dbuffer[str(class_label)]['times_reconstructed'] = [times_reconstructed]
       self.oldest_batches[str(class_label)] = 0
   
-  def load_from_tensor_dataset(self, dataset):
-    data_classes = [int(a) for a in set(dataset.tensors[1].tolist())]
+  def load_from_tensor_dataset(self, dataset, data_classes = [], transform = False):
+    # data_classes are the list of classes we want to load, if not precised: load all the available in the dataset
+    if len(data_classes)==0:
+      data_classes = [int(a) for a in set(dataset.tensors[1].tolist())]
     for idx_class in data_classes:
       indices = torch.FloatTensor((dataset.tensors[1].long()==idx_class).tolist()).nonzero().long().squeeze()
-      class_loader = DataLoader(dataset, batch_size=self.batch_size, sampler = SubsetRandomSampler(indices),  drop_last=True)
-      for (X, Y) in class_loader:
-        self.add_batch(X, idx_class)
+      class_loader = DataLoader(dataset, batch_size = self.batch_size, sampler = SubsetRandomSampler(indices),  drop_last=True)
+      for idx_batch in range(self.max_batches_per_class):
+        X = next(iter(class_loader))[0]
+        if transform:
+          self.add_batch(transform(X.cuda()).detach().cpu(), idx_class)
+        else:
+          self.add_batch(X, idx_class)
     if self.compute_stats:
       self.compute_data_stats()
   
@@ -113,7 +119,7 @@ class Data_Buffer:
     transformed_buffer = copy.deepcopy(self.dbuffer)
     for class_label in self.dbuffer.keys():
       for idx in range(len(self.dbuffer[str(class_label)]['data'])):
-        transformed_buffer[str(class_label)]['data'][idx] = transform(self.dbuffer[str(class_label)]['data'][idx].to(device)).cpu().data
+        transformed_buffer[str(class_label)]['data'][idx] = transform(self.dbuffer[str(class_label)]['data'][idx].to(device)).detach().cpu()
         transformed_buffer[str(class_label)]['times_reconstructed'][idx]+=1
     self.dbuffer = copy.deepcopy(transformed_buffer)
     transform.train()
@@ -131,7 +137,7 @@ class Data_Buffer:
       tensor_times_reconstructed += [times_rec for times_rec in self.dbuffer[key]['times_reconstructed'] for _ in range(self.batch_size)]
     tensor_data = torch.stack(tensor_data)
     tensor_data = tensor_data.reshape(tensor_data.shape[0]*tensor_data.shape[1], tensor_data.shape[2])
-    return TensorDataset(tensor_data, torch.FloatTensor(tensor_labels), torch.FloatTensor(tensor_times_reconstructed))
+    self.tensor_dataset = TensorDataset(tensor_data, torch.FloatTensor(tensor_labels), torch.FloatTensor(tensor_times_reconstructed))
   
   # TESTS
   def test_transforms(self):
