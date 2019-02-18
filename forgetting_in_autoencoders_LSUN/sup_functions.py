@@ -1,5 +1,12 @@
+import os
 import torch
+import torch.nn.functional as F
+
 import torch.nn as nn
+
+def memory_check():
+#  os.system('nvidia-smi')
+  os.system('free -m')
 
 def test_classifier(classif, data_loader):
   total = 0

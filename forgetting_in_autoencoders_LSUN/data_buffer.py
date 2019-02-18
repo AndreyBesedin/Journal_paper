@@ -70,10 +70,10 @@ class Data_Buffer:
     if str(class_label) in self.dbuffer.keys():
       if len(self.dbuffer[str(class_label)]) < self.max_batches_per_class:
         #print('adding new batch')
-        self.dbuffer[str(class_label)]['data'].append(batch.clone())
+        self.dbuffer[str(class_label)]['data'].append(batch.cpu().clone())
         self.dbuffer[str(class_label)]['times_reconstructed'].append(times_reconstructed)
       else:
-        self.dbuffer[str(class_label)]['data'][self.oldest_batches[str(class_label)]] = batch.clone()
+        self.dbuffer[str(class_label)]['data'][self.oldest_batches[str(class_label)]] = batch.cpu().clone()
         self.dbuffer[str(class_label)]['times_reconstructed'][self.oldest_batches[str(class_label)]] = times_reconstructed
         self.oldest_batches[str(class_label)] = (self.oldest_batches[str(class_label)] + 1) % self.max_batches_per_class
         #print('replacing old batch')
@@ -81,7 +81,7 @@ class Data_Buffer:
       #print('Class label:{}'.format(class_label))
       #print('initializing new class')
       self.dbuffer[str(class_label)] = {}
-      self.dbuffer[str(class_label)]['data'] = [batch.clone()]
+      self.dbuffer[str(class_label)]['data'] = [batch.cpu().clone()]
       self.dbuffer[str(class_label)]['times_reconstructed'] = [times_reconstructed]
       self.oldest_batches[str(class_label)] = 0
   
