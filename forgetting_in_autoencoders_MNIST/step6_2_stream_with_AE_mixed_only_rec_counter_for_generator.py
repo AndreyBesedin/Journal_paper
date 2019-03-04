@@ -27,7 +27,7 @@ opts = {
   'betta2': 1, # Influence coefficient for reconstruction loss in AE
   }
 
-cuda_device = 0
+cuda_device = 1
 torch.cuda.set_device(cuda_device)
 nb_of_classes = 30
 classes_per_interval = 3
@@ -38,7 +38,7 @@ codes_storage_size = 500 # Nb of batches of codes that we store per class
 fake_batches = 15
 real_batches = 5
 real_buffer_size = 20 # (* batch size = number of real data samples we store for further training)
-name_to_save = './results/LSUN_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage_{}_betta1_{}_betta2.pth'.format(fake_batches, real_batches, real_buffer_size, opts['betta1'], opts['betta2'])
+name_to_save = './results/LSUN_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage_{}_betta1_{}_betta2_only_use_rec_counter_for_generator.pth'.format(fake_batches, real_batches, real_buffer_size, opts['betta1'], opts['betta2'])
 
 # ----------------------------------------- LOADING THE ORIGINAL DATASETS ------------------------------------------------------
 
@@ -176,7 +176,7 @@ for interval in range(stream_duration):
     # Updating the classifier
     outputs = classifier(inputs)
     #classification_loss = classification_criterion(outputs, labels)
-    classification_loss = sup_functions.CrossEntropy_loss_weighted(outputs, labels, reconstruction_counter)
+    classification_loss = classification_criterion(outputs, labels)
     #classification_loss.backward(retain_graph=True)
     classification_loss.backward()
     classification_optimizer.step()

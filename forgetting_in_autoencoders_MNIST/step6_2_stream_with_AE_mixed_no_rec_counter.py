@@ -38,7 +38,7 @@ codes_storage_size = 500 # Nb of batches of codes that we store per class
 fake_batches = 15
 real_batches = 5
 real_buffer_size = 20 # (* batch size = number of real data samples we store for further training)
-name_to_save = './results/LSUN_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage_{}_betta1_{}_betta2.pth'.format(fake_batches, real_batches, real_buffer_size, opts['betta1'], opts['betta2'])
+name_to_save = './results/LSUN_stream_{}_fake_batches_{}_hist_batches_{}_batches_in_storage_{}_betta1_{}_betta2_no_rec_counter.pth'.format(fake_batches, real_batches, real_buffer_size, opts['betta1'], opts['betta2'])
 
 # ----------------------------------------- LOADING THE ORIGINAL DATASETS ------------------------------------------------------
 
@@ -176,7 +176,7 @@ for interval in range(stream_duration):
     # Updating the classifier
     outputs = classifier(inputs)
     #classification_loss = classification_criterion(outputs, labels)
-    classification_loss = sup_functions.CrossEntropy_loss_weighted(outputs, labels, reconstruction_counter)
+    classification_loss = classification_criterion(outputs, labels)
     #classification_loss.backward(retain_graph=True)
     classification_loss.backward()
     classification_optimizer.step()
@@ -193,8 +193,8 @@ for interval in range(stream_duration):
     reconstructions = gen_model(inputs)
     orig_classes = classifier(inputs).detach()
     classification_reconstructed = classifier(reconstructions)
-    loss_gen_rec = opts['betta2']*sup_functions.MSEloss_weighted(reconstructions, inputs, reconstruction_counter)
-    loss_gen_cl = opts['betta1']*sup_functions.MSEloss_weighted(classification_reconstructed, orig_classes, reconstruction_counter)
+    loss_gen_rec = opts['betta2']*generative_criterion_rec(reconstructions, inputs)
+    loss_gen_cl = opts['betta1']*generative_criterion_cl(classification_reconstructed, orig_classes)
 #    loss_gen_rec = opts['betta2']*generative_criterion_rec(reconstructions, inputs)
 #    loss_gen_cl = opts['betta1']*generative_criterion_cl(classification_reconstructed, orig_classes)
     #print('reconstruction loss: {}'.format(loss_gen_rec.item()))

@@ -24,7 +24,7 @@ opts = {
   'batch_size': 100,
   'learning_rate': 0.001,
   'betta1': 0.1, # Influence coefficient for classification loss in AE default 1e-2
-  'betta2': 1, # Influence coefficient for reconstruction loss in AE
+  'betta2': 0, # Influence coefficient for reconstruction loss in AE
   }
 
 cuda_device = 0
