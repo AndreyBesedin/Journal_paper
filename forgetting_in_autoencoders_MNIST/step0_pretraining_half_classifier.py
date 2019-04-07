@@ -48,7 +48,7 @@ trainset = torch.load('./data/trainset.pth')
 testset = torch.load('./data/testset.pth')
 trainset = TensorDataset(trainset[0], trainset[1])
 testset = TensorDataset(testset[0], testset[1])
-pretrain_on_classes = range(5)
+pretrain_on_classes = range(10)
 indices_train = get_indices_for_classes(trainset, pretrain_on_classes)
 indices_test = get_indices_for_classes(testset, pretrain_on_classes)
 
@@ -83,6 +83,6 @@ for epoch in range(training_epochs):
   print('Test accuracy after {} epochs: {:.8f}'.format(epoch+1, acc))    
   if acc > max_accuracy:
     max_accuracy = acc
-    torch.save(classifier.state_dict(), './pretrained_models/classifier_5_MNIST.pth')
+    torch.save(classifier.state_dict(), './pretrained_models/classifier_{}_MNIST.pth'.format(len(pretrain_on_classes)))
     
     
