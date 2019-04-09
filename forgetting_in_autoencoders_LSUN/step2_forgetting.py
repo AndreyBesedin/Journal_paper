@@ -15,8 +15,8 @@ code_size = 32
 training_epochs = 100
 cuda_device = 0 
 torch.cuda.set_device(cuda_device)
-real_batches_to_add = 5
-batches_per_class = 60
+real_batches_to_add = 0
+batches_per_class = 50
 reconstruct_every = 1
 opts = {
   'batch_size': 100,
@@ -31,7 +31,7 @@ test_classifier = sup_functions.test_classifier
 test_classifier_on_generator = sup_functions.test_classifier_on_generator
 get_indices_for_classes = sup_functions.get_indices_for_classes
 
-trainset = torch.load('../datasets/LSUN/testset.pth')
+trainset = torch.load('../datasets/LSUN/trainset.pth')
 testset = torch.load('../datasets/LSUN/testset.pth')
 
 original_trainset = TensorDataset(trainset[0], trainset[1], torch.zeros(trainset[1].shape))
@@ -40,8 +40,13 @@ testset = TensorDataset(testset[0], testset[1])
 
 # Loading the datasets
 print('Reshaping data into readable format')
+hist_buffer = Data_Buffer(real_batches_to_add or 1, opts['batch_size'])
+hist_buffer.load_from_tensor_dataset(trainset, list(range(30)))
+hist_buffer.make_tensor_dataset()
+hist_data = hist_buffer.tensor_dataset
+
 data_buffer = Data_Buffer(batches_per_class, opts['batch_size'])
-data_buffer.add_batches_from_dataset(trainset, list(range(30)), batches_per_class)                                         
+data_buffer.load_from_tensor_dataset(trainset, list(range(30)))                                         
 data_buffer.cuda_device = cuda_device
 
 print('Ended reshaping')
@@ -82,10 +87,10 @@ for epoch in range(training_epochs):  # loop over the dataset multiple times
   print('Transforming data with the latest autoencoder')
   data_buffer.transform_data(gen_model)
   if real_batches_to_add>0:
-    data_buffer.add_batches_from_dataset(original_trainset, list(range(30)), real_batches_to_add)
+    data_buffer.add_batches_from_dataset(hist_data, list(range(30)), real_batches_to_add)
   data_buffer.make_tensor_dataset()
   trainset = data_buffer.tensor_dataset
-  train_loader = DataLoader(trainset, batch_size=opts['batch_size'], shuffle=True, drop_last=True)
+  train_loader = DataLoader(trainset, batch_size=10*opts['batch_size'], shuffle=True, drop_last=True)
   for idx, (train_X, train_Y, _) in enumerate(train_loader):
     inputs = train_X.cuda()
     # ===================forward=====================
