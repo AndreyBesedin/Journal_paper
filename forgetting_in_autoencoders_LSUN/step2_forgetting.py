@@ -15,7 +15,7 @@ code_size = 32
 training_epochs = 100
 cuda_device = 0 
 torch.cuda.set_device(cuda_device)
-real_batches_to_add = 0
+real_batches_to_add = 2
 batches_per_class = 50
 reconstruct_every = 1
 opts = {
